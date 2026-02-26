@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        mono: ["JetBrains Mono", "monospace"],
+        sans: ["Inter", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,6 +61,19 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        tactical: {
+          red: "hsl(var(--tactical-red))",
+          blue: "hsl(var(--tactical-blue))",
+          green: "hsl(var(--tactical-green))",
+        },
+        olive: "hsl(var(--olive))",
+        panel: "hsl(var(--panel))",
+        "canvas-bg": "hsl(var(--canvas-bg))",
+        "grid-line": "hsl(var(--grid-line))",
+        timeline: "hsl(var(--timeline-bg))",
+        keyframe: "hsl(var(--keyframe))",
+        playhead: "hsl(var(--playhead))",
+        selection: "hsl(var(--selection))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,25 +82,27 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "0.6" },
+          "50%": { opacity: "1" },
+        },
+        "scan-line": {
+          "0%": { transform: "translateY(-100%)" },
+          "100%": { transform: "translateY(100vh)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "scan-line": "scan-line 8s linear infinite",
       },
     },
   },
