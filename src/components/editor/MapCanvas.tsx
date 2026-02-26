@@ -2,13 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
-import type { MapObject, Side } from '@/types/editor';
-
-const SIDE_COLORS: Record<Side, string> = {
-  red: '#cc3333',
-  blue: '#3366cc',
-  neutral: '#888888',
-};
+import type { MapObject } from '@/types/editor';
 
 const UNIT_LABELS: Record<string, string> = {
   infantry: 'INF',
@@ -20,6 +14,8 @@ const UNIT_LABELS: Record<string, string> = {
   hq: 'HQ',
   supply: 'SUP',
 };
+
+const UNIT_COLOR = '#d4a843';
 
 const MapCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,9 +29,11 @@ const MapCanvas: React.FC = () => {
   const activeTool = useEditorStore((s) => s.activeTool);
   const stageScale = useEditorStore((s) => s.stageScale);
   const stagePosition = useEditorStore((s) => s.stagePosition);
+  const isRecording = useEditorStore((s) => s.isRecording);
 
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
   const updateObject = useEditorStore((s) => s.updateObject);
+  const recordPosition = useEditorStore((s) => s.recordPosition);
   const setStageScale = useEditorStore((s) => s.setStageScale);
   const setStagePosition = useEditorStore((s) => s.setStagePosition);
 
@@ -97,10 +95,13 @@ const MapCanvas: React.FC = () => {
   };
 
   const handleDragEnd = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-    updateObject(id, {
-      x: e.target.x(),
-      y: e.target.y(),
-    });
+    const x = e.target.x();
+    const y = e.target.y();
+    if (isRecording) {
+      recordPosition(id, x, y);
+    } else {
+      updateObject(id, { x, y });
+    }
   };
 
   const units = objects.filter((o) => o.type === 'unit');
@@ -113,6 +114,14 @@ const MapCanvas: React.FC = () => {
         {Math.round(stageScale * 100)}% | {objects.length} objects
       </div>
 
+      {/* Recording indicator */}
+      {isRecording && (
+        <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-destructive/20 border border-destructive/50 rounded text-[10px] font-mono text-destructive flex items-center gap-2 animate-pulse">
+          <div className="w-2 h-2 rounded-full bg-destructive" />
+          REC — Drag units to record movement
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={dims.width}
@@ -121,46 +130,20 @@ const MapCanvas: React.FC = () => {
         scaleY={stageScale}
         x={stagePosition.x}
         y={stagePosition.y}
-        draggable={activeTool === 'select'}
+        draggable={activeTool === 'select' && !isRecording}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
       >
         {/* Background Layer */}
         <Layer>
-          <Rect
-            id="bg-rect"
-            x={0}
-            y={0}
-            width={1920}
-            height={1080}
-            fill="#0d1117"
-          />
-          {bgImage && (
-            <KImage
-              image={bgImage}
-              x={0}
-              y={0}
-              width={1920}
-              height={1080}
-            />
-          )}
-          {/* Grid overlay */}
+          <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" />
+          {bgImage && <KImage image={bgImage} x={0} y={0} width={1920} height={1080} />}
           {Array.from({ length: 97 }, (_, i) => (
-            <Line
-              key={`vg-${i}`}
-              points={[i * 20, 0, i * 20, 1080]}
-              stroke="#1a2332"
-              strokeWidth={0.5}
-            />
+            <Line key={`vg-${i}`} points={[i * 20, 0, i * 20, 1080]} stroke="#1a2332" strokeWidth={0.5} />
           ))}
           {Array.from({ length: 55 }, (_, i) => (
-            <Line
-              key={`hg-${i}`}
-              points={[0, i * 20, 1920, i * 20]}
-              stroke="#1a2332"
-              strokeWidth={0.5}
-            />
+            <Line key={`hg-${i}`} points={[0, i * 20, 1920, i * 20]} stroke="#1a2332" strokeWidth={0.5} />
           ))}
         </Layer>
 
@@ -169,14 +152,7 @@ const MapCanvas: React.FC = () => {
           {drawings.map((d) => {
             if (d.points && d.points.length >= 4) {
               return (
-                <Line
-                  key={d.id}
-                  points={d.points}
-                  stroke={d.color || '#d4a843'}
-                  strokeWidth={2}
-                  x={d.x}
-                  y={d.y}
-                />
+                <Line key={d.id} points={d.points} stroke={d.color || '#d4a843'} strokeWidth={2} x={d.x} y={d.y} />
               );
             }
             return null;
@@ -186,7 +162,6 @@ const MapCanvas: React.FC = () => {
         {/* Units Layer */}
         <Layer>
           {units.map((unit) => {
-            const color = SIDE_COLORS[unit.side || 'neutral'];
             const isSelected = selectedIds.includes(unit.id);
             const size = unit.width || 50;
 
@@ -198,7 +173,7 @@ const MapCanvas: React.FC = () => {
                 rotation={unit.rotation}
                 scaleX={unit.scaleX}
                 scaleY={unit.scaleY}
-                draggable={activeTool === 'select' && !unit.locked}
+                draggable={(activeTool === 'select' || isRecording) && !unit.locked}
                 onClick={(e) => {
                   e.cancelBubble = true;
                   if (e.evt.shiftKey) {
@@ -220,7 +195,7 @@ const MapCanvas: React.FC = () => {
                     y={-size / 2 - 4}
                     width={size + 8}
                     height={size + 8}
-                    stroke="#d4a843"
+                    stroke={UNIT_COLOR}
                     strokeWidth={2}
                     dash={[4, 4]}
                     cornerRadius={4}
@@ -232,8 +207,8 @@ const MapCanvas: React.FC = () => {
                   y={-size / 2}
                   width={size}
                   height={size}
-                  fill={`${color}44`}
-                  stroke={color}
+                  fill={`${UNIT_COLOR}44`}
+                  stroke={UNIT_COLOR}
                   strokeWidth={2}
                   cornerRadius={4}
                 />
@@ -246,16 +221,11 @@ const MapCanvas: React.FC = () => {
                   fontSize={13}
                   fontFamily="JetBrains Mono, monospace"
                   fontStyle="bold"
-                  fill={color}
+                  fill={UNIT_COLOR}
                   align="center"
                 />
-                {/* Side dot */}
-                <Circle
-                  x={size / 2 - 4}
-                  y={-size / 2 + 4}
-                  radius={4}
-                  fill={color}
-                />
+                {/* Top-right dot */}
+                <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
               </Group>
             );
           })}

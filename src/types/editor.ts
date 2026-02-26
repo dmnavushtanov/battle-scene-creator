@@ -1,7 +1,6 @@
 export type UnitType = 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' | 'air' | 'hq' | 'supply';
-export type DrawToolType = 'select' | 'arrow' | 'line' | 'freehand' | 'rectangle' | 'circle' | 'trench' | 'barricade';
+export type DrawToolType = 'select' | 'arrow' | 'line' | 'freehand' | 'rectangle' | 'circle';
 export type LayerType = 'background' | 'drawings' | 'units' | 'effects';
-export type Side = 'red' | 'blue' | 'neutral';
 
 export interface Position {
   x: number;
@@ -12,7 +11,6 @@ export interface MapObject {
   id: string;
   type: 'unit' | 'drawing' | 'effect';
   unitType?: UnitType;
-  side?: Side;
   label?: string;
   x: number;
   y: number;
@@ -70,6 +68,10 @@ export interface EditorState {
   currentTime: number;
   isPlaying: boolean;
   activeSceneId: string | null;
+  // Recording
+  isRecording: boolean;
+  recordingStartTime: number;
+  recordingStartPositions: Record<string, Position>;
   // Zoom/Pan
   stageScale: number;
   stagePosition: Position;
@@ -90,4 +92,8 @@ export interface EditorState {
   addScene: (scene: Scene) => void;
   exportProject: () => string;
   importProject: (json: string) => void;
+  // Recording actions
+  startRecording: () => void;
+  stopRecording: () => void;
+  recordPosition: (id: string, x: number, y: number) => void;
 }
