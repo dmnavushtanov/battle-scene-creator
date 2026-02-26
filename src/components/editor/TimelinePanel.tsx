@@ -1,6 +1,19 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward, Plus } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import type { Keyframe } from '@/types/editor';
+
+// Linear interpolation between two keyframes
+function lerpKeyframes(a: Keyframe, b: Keyframe, t: number) {
+  const ratio = (t - a.time) / (b.time - a.time);
+  return {
+    x: a.x + (b.x - a.x) * ratio,
+    y: a.y + (b.y - a.y) * ratio,
+    rotation: a.rotation + (b.rotation - a.rotation) * ratio,
+    scaleX: a.scaleX + (b.scaleX - a.scaleX) * ratio,
+    scaleY: a.scaleY + (b.scaleY - a.scaleY) * ratio,
+  };
+}
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -11,6 +24,7 @@ const TimelinePanel: React.FC = () => {
   const objects = useEditorStore((s) => s.project.objects);
   const keyframes = useEditorStore((s) => s.project.keyframes);
   const selectedIds = useEditorStore((s) => s.selectedIds);
+  const updateObject = useEditorStore((s) => s.updateObject);
 
   const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
   const timelineWidth = 800;
@@ -31,6 +45,51 @@ const TimelinePanel: React.FC = () => {
     setCurrentTime(time);
   };
 
+  // Interpolate object positions based on keyframes at current time
+  const interpolateObjects = (time: number) => {
+    const units = objects.filter((o) => o.type === 'unit');
+    units.forEach((unit) => {
+      const unitKfs = keyframes
+        .filter((k) => k.objectId === unit.id)
+        .sort((a, b) => a.time - b.time);
+      if (unitKfs.length === 0) return;
+
+      // Before first keyframe: snap to first
+      if (time <= unitKfs[0].time) {
+        updateObject(unit.id, {
+          x: unitKfs[0].x,
+          y: unitKfs[0].y,
+          rotation: unitKfs[0].rotation,
+          scaleX: unitKfs[0].scaleX,
+          scaleY: unitKfs[0].scaleY,
+        });
+        return;
+      }
+
+      // After last keyframe: snap to last
+      if (time >= unitKfs[unitKfs.length - 1].time) {
+        const last = unitKfs[unitKfs.length - 1];
+        updateObject(unit.id, {
+          x: last.x,
+          y: last.y,
+          rotation: last.rotation,
+          scaleX: last.scaleX,
+          scaleY: last.scaleY,
+        });
+        return;
+      }
+
+      // Find surrounding keyframes and interpolate
+      for (let i = 0; i < unitKfs.length - 1; i++) {
+        if (time >= unitKfs[i].time && time <= unitKfs[i + 1].time) {
+          const interp = lerpKeyframes(unitKfs[i], unitKfs[i + 1], time);
+          updateObject(unit.id, interp);
+          return;
+        }
+      }
+    });
+  };
+
   // Playback loop
   const playRef = React.useRef<number | null>(null);
   const lastTimeRef = React.useRef<number>(0);
@@ -48,6 +107,7 @@ const TimelinePanel: React.FC = () => {
           return;
         }
         setCurrentTime(newTime);
+        interpolateObjects(newTime);
         playRef.current = requestAnimationFrame(tick);
       };
       playRef.current = requestAnimationFrame(tick);
@@ -104,7 +164,6 @@ const TimelinePanel: React.FC = () => {
           onClick={handleTimelineClick}
           style={{ width: timelineWidth }}
         >
-          {/* Tick marks */}
           {Array.from({ length: Math.ceil(totalDuration / 1000) + 1 }, (_, i) => (
             <div
               key={i}
@@ -115,7 +174,6 @@ const TimelinePanel: React.FC = () => {
               <span className="text-[8px] font-mono text-muted-foreground">{i}s</span>
             </div>
           ))}
-          {/* Playhead */}
           <div
             className="absolute top-0 w-0.5 h-full bg-playhead z-10"
             style={{ left: currentTime * pxPerMs }}
@@ -136,9 +194,8 @@ const TimelinePanel: React.FC = () => {
               style={{ width: timelineWidth }}
             >
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase">
-                {unit.unitType} ({unit.side})
+                {unit.unitType}
               </span>
-              {/* Keyframe dots */}
               {unitKfs.map((kf) => (
                 <div
                   key={kf.id}

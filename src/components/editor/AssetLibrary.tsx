@@ -2,18 +2,11 @@ import React, { useRef } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
-import type { Side, UnitType, MapObject } from '@/types/editor';
-
-const SIDES: { value: Side; label: string }[] = [
-  { value: 'red', label: 'Red' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'neutral', label: 'Neutral' },
-];
+import type { UnitType, MapObject } from '@/types/editor';
 
 const AssetLibrary: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);
   const setBackgroundImage = useEditorStore((s) => s.setBackgroundImage);
-  const [activeSide, setActiveSide] = React.useState<Side>('blue');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddUnit = (unitType: UnitType) => {
@@ -21,7 +14,6 @@ const AssetLibrary: React.FC = () => {
       id: uuid(),
       type: 'unit',
       unitType,
-      side: activeSide,
       label: unitType,
       x: 400 + Math.random() * 200,
       y: 300 + Math.random() * 200,
@@ -75,28 +67,6 @@ const AssetLibrary: React.FC = () => {
         />
       </div>
 
-      {/* Side Selector */}
-      <div className="px-3 py-3 border-b border-border">
-        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-          Side
-        </p>
-        <div className="flex gap-1">
-          {SIDES.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => setActiveSide(s.value)}
-              className={`flex-1 py-1.5 text-[10px] font-mono uppercase rounded border transition-colors ${
-                activeSide === s.value
-                  ? 'border-primary bg-primary/20 text-primary'
-                  : 'border-border bg-muted text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Unit Types */}
       <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
         <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
@@ -109,7 +79,7 @@ const AssetLibrary: React.FC = () => {
               onClick={() => handleAddUnit(u.type)}
               className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group"
             >
-              <UnitIcon unitType={u.type} side={activeSide} size={32} />
+              <UnitIcon unitType={u.type} size={32} />
               <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground">
                 {u.label}
               </span>

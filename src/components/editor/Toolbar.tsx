@@ -8,11 +8,12 @@ import {
   Pencil,
   Square,
   Circle,
-  Fence,
   Trash2,
   Download,
   Upload,
   Film,
+  CircleDot,
+  StopCircle,
 } from 'lucide-react';
 
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
@@ -22,7 +23,6 @@ const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
   { tool: 'freehand', icon: <Pencil size={16} />, label: 'Draw' },
   { tool: 'rectangle', icon: <Square size={16} />, label: 'Rect' },
   { tool: 'circle', icon: <Circle size={16} />, label: 'Circle' },
-  { tool: 'trench', icon: <Fence size={16} />, label: 'Trench' },
 ];
 
 const Toolbar: React.FC = () => {
@@ -32,6 +32,9 @@ const Toolbar: React.FC = () => {
   const removeObject = useEditorStore((s) => s.removeObject);
   const exportProject = useEditorStore((s) => s.exportProject);
   const importProject = useEditorStore((s) => s.importProject);
+  const isRecording = useEditorStore((s) => s.isRecording);
+  const startRecording = useEditorStore((s) => s.startRecording);
+  const stopRecording = useEditorStore((s) => s.stopRecording);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -58,6 +61,14 @@ const Toolbar: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
   return (
     <div className="flex items-center gap-1 px-3 py-2 bg-panel border-b border-border">
       {/* Draw tools */}
@@ -77,6 +88,22 @@ const Toolbar: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {/* Record button */}
+      <button
+        onClick={handleToggleRecording}
+        title={isRecording ? 'Stop Recording' : 'Record Movement'}
+        className={`p-2 rounded transition-colors flex items-center gap-1.5 text-[10px] font-mono uppercase border ${
+          isRecording
+            ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted border-border'
+        }`}
+      >
+        {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
+        {isRecording ? 'Stop' : 'Record'}
+      </button>
+
+      <div className="border-r border-border h-5 mx-2" />
 
       {/* Actions */}
       <button

@@ -74,9 +74,6 @@ const PropertiesPanel: React.FC = () => {
           <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-primary/20 text-primary rounded">
             {single.unitType || single.type}
           </span>
-          <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-muted text-muted-foreground rounded">
-            {single.side}
-          </span>
         </div>
 
         {/* Position */}
