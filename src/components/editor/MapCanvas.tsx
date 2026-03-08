@@ -174,7 +174,7 @@ const MapCanvas: React.FC = () => {
   };
 
   const getObjectTransform = (id: string) => {
-    if (!isRecording && derivedTransforms[id]) {
+    if (isPlaying && derivedTransforms[id]) {
       return derivedTransforms[id];
     }
     return null;
