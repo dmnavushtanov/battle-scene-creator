@@ -302,7 +302,7 @@ const MapCanvas: React.FC = () => {
   };
 
   const getObjectTransform = (id: string) => {
-    if (isPlaying && derivedTransforms[id]) return derivedTransforms[id];
+    if (derivedTransforms[id]) return derivedTransforms[id];
     return null;
   };
 
