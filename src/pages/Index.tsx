@@ -106,7 +106,7 @@ const Index: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-panel border-b border-border">
         <div className="flex items-center gap-3">
-          <FileMenu onNewProject={() => { useEditorStore.getState().importProject(JSON.stringify(useEditorStore.getState().exportProject())); setProjectStarted(false); }} onLoadProject={(json) => { importProject(json); }} />
+          <FileMenu onNewProject={() => setProjectStarted(false)} onLoadProject={(json) => { importProject(json); }} />
           <h1 className="text-sm font-mono font-bold text-primary amber-glow tracking-wider uppercase">Battle Map</h1>
           <span className="text-[9px] font-mono px-2 py-0.5 bg-muted text-muted-foreground rounded uppercase">MVP</span>
         </div>
