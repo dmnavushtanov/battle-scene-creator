@@ -48,12 +48,13 @@ const TimelinePanel: React.FC = () => {
   });
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
+  const selectedEffectId = useEditorStore((s) => s.selectedEffectId);
+  const setSelectedEffectId = useEditorStore((s) => s.setSelectedEffectId);
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
   const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
   const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
-  const [expandedUnitEffects, setExpandedUnitEffects] = useState<Record<string, boolean>>({});
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
