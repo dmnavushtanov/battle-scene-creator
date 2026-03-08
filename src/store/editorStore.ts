@@ -38,6 +38,14 @@ export interface CustomIcon {
   dataUrl: string;
 }
 
+export interface ClipboardData {
+  type: 'unit' | 'effect';
+  object?: MapObject;
+  keyframes?: Keyframe[];
+  effects?: UnitEffect[];
+  effect?: UnitEffect;
+}
+
 export interface EditorState {
   project: ProjectData;
   activeSceneId: string;
@@ -60,6 +68,7 @@ export interface EditorState {
   selectedOverlayId: string | null;
   selectedKeyframeIndex: { objectId: string; index: number } | null;
   selectedEffectId: { objectId: string; effectId: string } | null;
+  clipboard: ClipboardData | null;
 
   // Scene helpers
   getActiveScene: () => Scene;
@@ -149,6 +158,10 @@ export interface EditorState {
   addCustomIcon: (icon: CustomIcon) => void;
   removeCustomIcon: (id: string) => void;
 
+  // Clipboard
+  copySelected: () => void;
+  pasteClipboard: () => void;
+
   // Import/Export
   exportProject: () => string;
   importProject: (json: string) => void;
@@ -179,6 +192,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selectedOverlayId: null,
     selectedKeyframeIndex: null,
     selectedEffectId: null,
+    clipboard: null,
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
@@ -662,6 +676,78 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
     removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
+
+    // Clipboard
+    copySelected: () => {
+      const { selectedIds, selectedEffectId } = get();
+      const scene = get().getActiveScene();
+
+      // Copy effect
+      if (selectedEffectId) {
+        const effs = scene.effectsByObjectId[selectedEffectId.objectId] || [];
+        const eff = effs.find((e) => e.id === selectedEffectId.effectId);
+        if (eff) {
+          set({ clipboard: { type: 'effect', effect: { ...eff } } });
+        }
+        return;
+      }
+
+      // Copy unit
+      if (selectedIds.length === 1) {
+        const obj = scene.objectsById[selectedIds[0]];
+        if (!obj) return;
+        const kfs = scene.keyframesByObjectId[obj.id] || [];
+        const effs = scene.effectsByObjectId[obj.id] || [];
+        set({
+          clipboard: {
+            type: 'unit',
+            object: { ...obj },
+            keyframes: kfs.map((k) => ({ ...k })),
+            effects: effs.map((e) => ({ ...e })),
+          },
+        });
+      }
+    },
+
+    pasteClipboard: () => {
+      const { clipboard, selectedIds, currentTime } = get();
+      if (!clipboard) return;
+      const scene = get().getActiveScene();
+
+      if (clipboard.type === 'unit' && clipboard.object) {
+        const newId = uuid();
+        const newObj: MapObject = {
+          ...clipboard.object,
+          id: newId,
+          x: clipboard.object.x + 30,
+          y: clipboard.object.y + 30,
+        };
+        get().addObject(newObj);
+
+        // Copy keyframes
+        if (clipboard.keyframes && clipboard.keyframes.length > 0) {
+          get().batchAddKeyframes(newId, clipboard.keyframes.map((k) => ({ ...k })));
+        }
+
+        // Copy effects
+        if (clipboard.effects) {
+          for (const eff of clipboard.effects) {
+            get().addEffect(newId, { ...eff, id: uuid() });
+          }
+        }
+
+        set({ selectedIds: [newId] });
+      }
+
+      if (clipboard.type === 'effect' && clipboard.effect) {
+        // Paste effect onto selected unit
+        const targetId = selectedIds[0];
+        if (!targetId) return;
+        const obj = scene.objectsById[targetId];
+        if (!obj) return;
+        get().addEffect(targetId, { ...clipboard.effect, id: uuid(), startTime: currentTime });
+      }
+    },
 
     exportProject: () => serializeProject(get().project),
 

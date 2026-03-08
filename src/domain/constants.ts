@@ -1,4 +1,4 @@
-import type { EffectType, UnitType } from './models';
+import type { EffectType, UnitType, ObjectCategory } from './models';
 
 /** Colors for effect types on timeline and canvas badges */
 export const EFFECT_COLORS: Record<string, string> = {
@@ -32,6 +32,29 @@ export const UNIT_SYMBOLS: Record<string, string> = {
   air: '✈',
   hq: '★',
   supply: '📦',
+  // Structures
+  house: '🏠',
+  castle: '🏰',
+  tower: '🗼',
+  church: '⛪',
+  tavern: '🍺',
+  windmill: '🌬️',
+  bridge: '🌉',
+  gate: '🚪',
+  // Props
+  barrel: '🛢️',
+  haystack: '🌾',
+  cart: '🛒',
+  chest: '📦',
+  well: '⛲',
+  campfire: '🔥',
+  tent: '⛺',
+  flag: '🏴',
+  // Terrain
+  tree: '🌲',
+  rock: '🪨',
+  mountain: '⛰️',
+  river: '🌊',
 };
 
 /** Short labels for unit types on canvas */
@@ -44,6 +67,58 @@ export const UNIT_LABELS: Record<string, string> = {
   air: 'AIR',
   hq: 'HQ',
   supply: 'SUP',
+  house: 'HSE',
+  castle: 'CST',
+  tower: 'TWR',
+  church: 'CHR',
+  tavern: 'TAV',
+  windmill: 'WML',
+  bridge: 'BRG',
+  gate: 'GTE',
+  barrel: 'BRL',
+  haystack: 'HAY',
+  cart: 'CRT',
+  chest: 'CHT',
+  well: 'WEL',
+  campfire: 'CFR',
+  tent: 'TNT',
+  flag: 'FLG',
+  tree: 'TRE',
+  rock: 'RCK',
+  mountain: 'MTN',
+  river: 'RVR',
+};
+
+/** Category mapping for each unit type */
+export const UNIT_CATEGORY: Record<string, ObjectCategory> = {
+  infantry: 'military',
+  cavalry: 'military',
+  armor: 'military',
+  artillery: 'military',
+  naval: 'military',
+  air: 'military',
+  hq: 'military',
+  supply: 'military',
+  house: 'structure',
+  castle: 'structure',
+  tower: 'structure',
+  church: 'structure',
+  tavern: 'structure',
+  windmill: 'structure',
+  bridge: 'structure',
+  gate: 'structure',
+  barrel: 'prop',
+  haystack: 'prop',
+  cart: 'prop',
+  chest: 'prop',
+  well: 'prop',
+  campfire: 'prop',
+  tent: 'prop',
+  flag: 'prop',
+  tree: 'terrain',
+  rock: 'terrain',
+  mountain: 'terrain',
+  river: 'terrain',
 };
 
 /** Default unit color (amber) */

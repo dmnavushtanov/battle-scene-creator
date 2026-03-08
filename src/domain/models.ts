@@ -1,4 +1,13 @@
-export type UnitType = 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' | 'air' | 'hq' | 'supply';
+export type UnitType =
+  | 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' | 'air' | 'hq' | 'supply'
+  // Structures
+  | 'house' | 'castle' | 'tower' | 'church' | 'tavern' | 'windmill' | 'bridge' | 'gate'
+  // Props
+  | 'barrel' | 'haystack' | 'cart' | 'chest' | 'well' | 'campfire' | 'tent' | 'flag'
+  // Terrain
+  | 'tree' | 'rock' | 'mountain' | 'river';
+
+export type ObjectCategory = 'military' | 'structure' | 'prop' | 'terrain';
 export type DrawToolType = 'select' | 'arrow' | 'path';
 export type LayerType = 'background' | 'drawings' | 'units' | 'effects';
 
@@ -10,6 +19,7 @@ export interface MapObject {
   id: string;
   type: 'unit' | 'drawing' | 'effect';
   unitType?: UnitType;
+  objectCategory?: ObjectCategory;
   label?: string;
   customIcon?: string;
   x: number;

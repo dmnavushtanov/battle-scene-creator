@@ -39,6 +39,7 @@ const TimelinePanel: React.FC = () => {
   const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
   const removeObject = useEditorStore((s) => s.removeObject);
   const removeKeyframe = useEditorStore((s) => s.removeKeyframe);
+  const removeEffect = useEditorStore((s) => s.removeEffect);
   const selectedKeyframeIndex = useEditorStore((s) => s.selectedKeyframeIndex);
   const setSelectedKeyframeIndex = useEditorStore((s) => s.setSelectedKeyframeIndex);
 
@@ -53,19 +54,23 @@ const TimelinePanel: React.FC = () => {
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
-  const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
-  const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
+
+  // Generalized delete confirmation
+  const [pendingDelete, setPendingDelete] = useState<{ label: string; onConfirm: () => void } | null>(null);
+
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
   const handleRulerScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
     const ruler = e.currentTarget;
     const rect = ruler.getBoundingClientRect();
     const calcTime = (clientX: number) => Math.max(0, Math.min(totalDuration, (clientX - rect.left) / pxPerMs));
     if (isPlaying) setIsPlaying(false);
     seekTo(calcTime(e.clientX));
     const onMove = (me: MouseEvent) => {
+      me.preventDefault();
       const t = calcTime(me.clientX);
       seekTo(t);
       computeDerivedTransforms(t);
@@ -203,9 +208,11 @@ const TimelinePanel: React.FC = () => {
     origStart: number,
     origDur: number,
   ) => (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const onMove = (me: MouseEvent) => {
+      me.preventDefault();
       const dx = me.clientX - startX;
       const dtMs = dx / pxPerMs;
       if (type === 'move') {
@@ -227,9 +234,11 @@ const TimelinePanel: React.FC = () => {
 
   /** Keyframe drag handler */
   const makeKeyframeDragHandler = (objectId: string, kfIndex: number, origTime: number) => (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const onMove = (me: MouseEvent) => {
+      me.preventDefault();
       const dx = me.clientX - startX;
       const dtMs = dx / pxPerMs;
       const newTime = Math.max(0, Math.min(totalDuration, origTime + dtMs));
@@ -238,6 +247,11 @@ const TimelinePanel: React.FC = () => {
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  };
+
+  /** Confirm-wrapped delete helper */
+  const confirmDelete = (label: string, onConfirm: () => void) => {
+    setPendingDelete({ label, onConfirm });
   };
 
   /** Reusable timeline block with move + resize handles */
@@ -287,16 +301,8 @@ const TimelinePanel: React.FC = () => {
     );
   };
 
-  const confirmDeleteTrack = () => {
-    if (deleteTrackId) {
-      removeObject(deleteTrackId);
-      setDeleteTrackId(null);
-      setDeleteTrackLabel('');
-    }
-  };
-
   return (
-    <div className="bg-timeline border-t border-border flex flex-col h-full">
+    <div className="bg-timeline border-t border-border flex flex-col h-full select-none">
       {/* Controls bar */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-20 ${timeframeLocked ? 'sticky top-0' : ''}`}>
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
@@ -362,7 +368,11 @@ const TimelinePanel: React.FC = () => {
       {/* Timeline tracks */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 pb-2 pt-0 bg-timeline">
         {/* Time ruler */}
-        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-20 bg-timeline shadow-[0_1px_0_hsl(var(--border))]' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
+        <div
+          className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-20 bg-timeline border-b border-border' : ''}`}
+          onMouseDown={handleRulerScrub}
+          style={{ width: timelineWidth }}
+        >
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
           )}
@@ -399,7 +409,7 @@ const TimelinePanel: React.FC = () => {
                   colorClass="bg-accent/40"
                   borderClass="border-accent"
                   onClick={(e) => { e.stopPropagation(); setSelectedNarrationId(n.id); }}
-                  onDelete={(e) => { e.stopPropagation(); removeNarration(n.id); }}
+                  onDelete={(e) => { e.stopPropagation(); confirmDelete(n.text?.slice(0, 20) || 'narration', () => removeNarration(n.id)); }}
                   onMoveDown={makeBlockDragHandler('move', (st, dur) => {
                     useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
                   }, n.startTime, n.duration)}
@@ -439,7 +449,7 @@ const TimelinePanel: React.FC = () => {
                   colorClass="bg-secondary/40"
                   borderClass="border-secondary"
                   onClick={(e) => { e.stopPropagation(); setSelectedOverlayId(o.id); }}
-                  onDelete={(e) => { e.stopPropagation(); removeOverlay(o.id); }}
+                  onDelete={(e) => { e.stopPropagation(); confirmDelete(o.title || 'overlay', () => removeOverlay(o.id)); }}
                   onMoveDown={makeBlockDragHandler('move', (st, dur) => {
                     useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
                   }, o.startTime, o.duration)}
@@ -472,7 +482,7 @@ const TimelinePanel: React.FC = () => {
                 bgColor="#d4a84355"
                 borderColor="#d4a843"
                 onClick={(e) => { e.stopPropagation(); }}
-                onDelete={(e) => { e.stopPropagation(); removeSound(snd.id); }}
+                onDelete={(e) => { e.stopPropagation(); confirmDelete(snd.label || 'sound', () => removeSound(snd.id)); }}
                 onMoveDown={makeBlockDragHandler('move', (st, dur) => {
                   useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
                 }, snd.startTime, snd.duration)}
@@ -524,8 +534,7 @@ const TimelinePanel: React.FC = () => {
                   className="absolute right-1 top-0.5 text-destructive/50 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity z-10"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setDeleteTrackId(unit.id);
-                    setDeleteTrackLabel(unit.label || unit.unitType || 'this track');
+                    confirmDelete(unit.label || unit.unitType || 'this track', () => removeObject(unit.id));
                   }}
                   title="Delete track"
                 >
@@ -558,7 +567,7 @@ const TimelinePanel: React.FC = () => {
                       onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        removeKeyframe(unit.id, idx);
+                        confirmDelete(`keyframe at ${formatTime(kf.time)}`, () => removeKeyframe(unit.id, idx));
                       }}
                     />
                   );
@@ -587,6 +596,11 @@ const TimelinePanel: React.FC = () => {
                             useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
                           }, eff.startTime, eff.duration)(e);
                         }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        confirmDelete(`${eff.type} effect`, () => removeEffect(unit.id, eff.id));
                       }}
                     >
                       <div
@@ -658,7 +672,7 @@ const TimelinePanel: React.FC = () => {
                             bgColor={effColor + '55'}
                             borderColor={effColor}
                             onClick={(e) => { e.stopPropagation(); setSelectedIds([effObj.id]); }}
-                            onDelete={(e) => { e.stopPropagation(); setDeleteTrackId(effObj.id); setDeleteTrackLabel(effObj.label || 'this effect'); }}
+                            onDelete={(e) => { e.stopPropagation(); confirmDelete(effObj.label || 'this effect', () => removeObject(effObj.id)); }}
                             onMoveDown={makeBlockDragHandler('move', (st, dur) => {
                               useEditorStore.getState().updateEffect(effObj.id, eff.id, { startTime: st, duration: dur });
                             }, eff.startTime, eff.duration)}
@@ -686,24 +700,24 @@ const TimelinePanel: React.FC = () => {
         )}
       </div>
 
-      {/* Delete track confirmation dialog */}
-      <Dialog open={!!deleteTrackId} onOpenChange={(open) => { if (!open) { setDeleteTrackId(null); setDeleteTrackLabel(''); } }}>
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
         <DialogContent className="sm:max-w-[340px] bg-panel border-border">
           <DialogHeader>
-            <DialogTitle className="text-sm font-mono uppercase text-primary">Delete Track</DialogTitle>
+            <DialogTitle className="text-sm font-mono uppercase text-primary">Confirm Delete</DialogTitle>
             <DialogDescription className="text-xs font-mono text-muted-foreground">
-              Are you sure you want to delete "{deleteTrackLabel}"? This will remove all its keyframes, effects, and data.
+              Are you sure you want to delete "{pendingDelete?.label}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <button
-              onClick={() => { setDeleteTrackId(null); setDeleteTrackLabel(''); }}
+              onClick={() => setPendingDelete(null)}
               className="px-4 py-2 text-[10px] font-mono uppercase bg-muted border border-border rounded text-foreground hover:bg-muted/80 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={confirmDeleteTrack}
+              onClick={() => { pendingDelete?.onConfirm(); setPendingDelete(null); }}
               className="px-4 py-2 text-[10px] font-mono uppercase bg-destructive/20 text-destructive border border-destructive/50 rounded hover:bg-destructive/30 transition-colors"
             >
               Delete
