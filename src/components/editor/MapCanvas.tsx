@@ -768,30 +768,56 @@ const MapCanvas: React.FC = () => {
                 )}
 
                 {/* Unit body */}
-                {!isStandaloneEffect && (
+                {!isStandaloneEffect && unit.type === 'unit' && (() => {
+                  const unitColor = unit.factionColor || UNIT_COLOR;
+                  return (
+                    <>
+                      <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${unitColor}44`} stroke={unitColor} strokeWidth={2} cornerRadius={4} />
+                      {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
+                      {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
+                      {!customIconImage && !builtInIconImage && (
+                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
+                      )}
+                      <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />
+                      {group && (
+                        <>
+                          <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />
+                          <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
+                        </>
+                      )}
+                      {/* Effect badges */}
+                      {staticEffects.slice(0, 3).map((eff, i) => (
+                        <React.Fragment key={eff.id}>
+                          <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={EFFECT_COLORS[eff.type] || '#ff6600'} opacity={0.85} listening={false} />
+                          <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
+                        </React.Fragment>
+                      ))}
+                      {staticEffects.length > 3 && (
+                        <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Map text rendering */}
+                {unit.type === 'map_text' && (
                   <>
-                    <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${UNIT_COLOR}44`} stroke={UNIT_COLOR} strokeWidth={2} cornerRadius={4} />
-                    {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
-                    {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
-                    {!customIconImage && !builtInIconImage && (
-                      <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={UNIT_COLOR} />
+                    {unit.bgColor && (
+                      <Rect x={-100} y={-(unit.fontSize || 20) / 2 - 4} width={200} height={(unit.fontSize || 20) + 8} fill={unit.bgColor} opacity={0.7} cornerRadius={3} listening={false} />
                     )}
-                    <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
-                    {group && (
-                      <>
-                        <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />
-                        <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
-                      </>
-                    )}
-                    {/* Effect badges */}
-                    {staticEffects.slice(0, 3).map((eff, i) => (
-                      <React.Fragment key={eff.id}>
-                        <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={EFFECT_COLORS[eff.type] || '#ff6600'} opacity={0.85} listening={false} />
-                        <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
-                      </React.Fragment>
-                    ))}
-                    {staticEffects.length > 3 && (
-                      <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
+                    <Text
+                      x={-150} y={-(unit.fontSize || 20) / 2}
+                      width={300}
+                      text={unit.text || 'Text'}
+                      fontSize={unit.fontSize || 20}
+                      fontFamily="JetBrains Mono, monospace"
+                      fontStyle="bold"
+                      fill={unit.fontColor || '#ffffff'}
+                      align="center"
+                      listening={false}
+                    />
+                    {isSelected && (
+                      <Rect x={-100} y={-(unit.fontSize || 20) / 2 - 6} width={200} height={(unit.fontSize || 20) + 12} stroke="#ffffff" strokeWidth={1} dash={[4, 3]} cornerRadius={3} opacity={0.5} listening={false} />
                     )}
                   </>
                 )}
