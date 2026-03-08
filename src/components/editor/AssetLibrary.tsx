@@ -3,10 +3,10 @@ import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
 import type { UnitType, MapObject } from '@/domain/models';
-import { Upload, ImageIcon } from 'lucide-react';
+import { ImageIcon, Trash2 } from 'lucide-react';
 
 const MAX_ICON_KB = 200;
-const ICON_RENDER_SIZE = 50; // standard icon size in pixels
+const ICON_RENDER_SIZE = 50;
 
 function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
   return new Promise((resolve) => {
@@ -16,7 +16,6 @@ function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d')!;
-      // Draw image centered and covering the square
       const scale = Math.max(size / img.width, size / img.height);
       const w = img.width * scale;
       const h = img.height * scale;
@@ -32,6 +31,9 @@ const AssetLibrary: React.FC = () => {
   const setBackgroundImage = useEditorStore((s) => s.setBackgroundImage);
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
+  const customIcons = useEditorStore((s) => s.customIcons);
+  const addCustomIcon = useEditorStore((s) => s.addCustomIcon);
+  const removeCustomIcon = useEditorStore((s) => s.removeCustomIcon);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +43,29 @@ const AssetLibrary: React.FC = () => {
       type: 'unit',
       unitType,
       label: unitType,
+      x: 400 + Math.random() * 200,
+      y: 300 + Math.random() * 200,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      layer: 'units',
+      visible: true,
+      locked: false,
+      width: ICON_RENDER_SIZE,
+      height: ICON_RENDER_SIZE,
+    };
+    addObject(obj);
+    setActiveTool('select');
+    setSelectedIds([obj.id]);
+  };
+
+  const handleAddCustomUnit = (iconDataUrl: string, label: string) => {
+    const obj: MapObject = {
+      id: uuid(),
+      type: 'unit',
+      unitType: 'infantry',
+      label,
+      customIcon: iconDataUrl,
       x: 400 + Math.random() * 200,
       y: 300 + Math.random() * 200,
       rotation: 0,
@@ -79,33 +104,17 @@ const AssetLibrary: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
-      // Resize to standard icon size
-      const resized = await resizeImageToSquare(dataUrl, ICON_RENDER_SIZE * 2); // 2x for retina
+      const resized = await resizeImageToSquare(dataUrl, ICON_RENDER_SIZE * 2);
+      const label = file.name.replace(/\.[^.]+$/, '').slice(0, 12);
 
-      const obj: MapObject = {
-        id: uuid(),
-        type: 'unit',
-        unitType: 'infantry',
-        label: file.name.replace(/\.[^.]+$/, '').slice(0, 12),
-        customIcon: resized,
-        x: 400 + Math.random() * 200,
-        y: 300 + Math.random() * 200,
-        rotation: 0,
-        scaleX: 1,
-        scaleY: 1,
-        layer: 'units',
-        visible: true,
-        locked: false,
-        width: ICON_RENDER_SIZE,
-        height: ICON_RENDER_SIZE,
-      };
-      addObject(obj);
-      setActiveTool('select');
-      setSelectedIds([obj.id]);
+      // Save to custom icons library
+      addCustomIcon({ id: uuid(), label, dataUrl: resized });
+
+      // Also place one on canvas immediately
+      handleAddCustomUnit(resized, label);
     };
     reader.readAsDataURL(file);
 
-    // Reset input so same file can be re-uploaded
     if (iconInputRef.current) iconInputRef.current.value = '';
   };
 
@@ -156,6 +165,36 @@ const AssetLibrary: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* My Icons */}
+        {customIcons.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-border">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
+              My Icons
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {customIcons.map((icon) => (
+                <div key={icon.id} className="relative group">
+                  <button
+                    onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)}
+                    className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                  >
+                    <img src={icon.dataUrl} alt={icon.label} className="w-8 h-8 object-contain" />
+                    <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">
+                      {icon.label}
+                    </span>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeCustomIcon(icon.id); }}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={8} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Custom Icon Upload */}
         <div className="mt-4 pt-3 border-t border-border">

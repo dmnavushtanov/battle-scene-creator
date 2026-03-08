@@ -360,6 +360,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ derivedTransforms: transforms });
     },
 
+    addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
+    removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
+
     exportProject: () => serializeProject(get().project),
 
     importProject: (json) => {
