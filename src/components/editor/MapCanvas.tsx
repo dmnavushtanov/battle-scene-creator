@@ -124,6 +124,34 @@ const MapCanvas: React.FC = () => {
         return;
       }
 
+      // Delete / Backspace — delete selected objects with confirmation
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Don't intercept if user is typing in an input/textarea
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        const sids = useEditorStore.getState().selectedIds;
+        if (sids.length > 0) {
+          e.preventDefault();
+          const label = sids.length === 1 ? 'this unit' : `these ${sids.length} units`;
+          if (window.confirm(`Delete ${label}? This will also remove their keyframes and effects.`)) {
+            const removeObject = useEditorStore.getState().removeObject;
+            sids.forEach((id) => removeObject(id));
+            useEditorStore.setState({ selectedIds: [] });
+          }
+        }
+        return;
+      }
+
+      // Space — toggle play/pause
+      if (e.key === ' ') {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+        e.preventDefault();
+        const { isPlaying, setIsPlaying } = useEditorStore.getState();
+        setIsPlaying(!isPlaying);
+        return;
+      }
+
       if (e.key !== 'Escape') return;
 
       // If drawing a path, cancel it
