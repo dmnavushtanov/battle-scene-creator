@@ -492,6 +492,22 @@ const MapCanvas: React.FC = () => {
               listening={false}
             />
           )}
+          {/* Path drawing preview */}
+          {pathPoints.length > 0 && (
+            <>
+              <Line
+                points={pathPoints.flatMap((p) => [p.x, p.y])}
+                stroke="#00bcd4"
+                strokeWidth={2}
+                dash={[6, 4]}
+                opacity={0.8}
+                listening={false}
+              />
+              {pathPoints.map((p, i) => (
+                <Circle key={`pp-${i}`} x={p.x} y={p.y} radius={4} fill="#00bcd4" stroke="#fff" strokeWidth={1} opacity={0.9} listening={false} />
+              ))}
+            </>
+          )}
         </Layer>
 
         <Layer>
