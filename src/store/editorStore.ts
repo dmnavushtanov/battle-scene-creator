@@ -127,6 +127,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     stageScale: 1,
     stagePosition: { x: 0, y: 0 },
     derivedTransforms: {},
+    customIcons: [],
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
