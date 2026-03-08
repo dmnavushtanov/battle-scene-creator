@@ -100,6 +100,8 @@ const AssetLibrary: React.FC = () => {
         height: ICON_RENDER_SIZE,
       };
       addObject(obj);
+      setActiveTool('select');
+      setSelectedIds([obj.id]);
     };
     reader.readAsDataURL(file);
 

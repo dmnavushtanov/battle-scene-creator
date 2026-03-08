@@ -259,11 +259,13 @@ const MapCanvas: React.FC = () => {
 
             if (!uvis) return null;
 
-            const hasCustomIcon = !!unit.customIcon;
+            const customIconImage = unit.customIcon ? customIconImages.get(unit.customIcon) : null;
+            const hasCustomIcon = Boolean(customIconImage);
 
             return (
               <Group
                 key={unit.id}
+                id={`unit-${unit.id}`}
                 x={ux}
                 y={uy}
                 rotation={urot}
@@ -313,7 +315,15 @@ const MapCanvas: React.FC = () => {
                 />
 
                 {/* Custom uploaded icon */}
-                {hasCustomIcon && <CustomIconImage src={unit.customIcon!} size={size} />}
+                {hasCustomIcon && (
+                  <KImage
+                    image={customIconImage!}
+                    x={-size / 2 + 4}
+                    y={-size / 2 + 4}
+                    width={size - 8}
+                    height={size - 8}
+                  />
+                )}
 
                 {/* Default: emoji symbol + label */}
                 {!hasCustomIcon && (
