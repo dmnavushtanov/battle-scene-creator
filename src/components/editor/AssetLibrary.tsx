@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
-import UnitIcon, { UNIT_TYPES } from './UnitIcon';
-import type { UnitType, MapObject } from '@/domain/models';
-import { ImageIcon, Trash2, Sparkles, GripVertical, Volume2 } from 'lucide-react';
+import UnitIcon, { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
+import type { UnitType, MapObject, ObjectCategory } from '@/domain/models';
+import { ImageIcon, Trash2, Sparkles, GripVertical, Volume2, ChevronDown, ChevronRight } from 'lucide-react';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
+import { EFFECT_COLORS, UNIT_CATEGORY } from '@/domain/constants';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
 const MAX_ICON_KB = 200;
 const ICON_RENDER_SIZE = 50;
@@ -27,12 +29,13 @@ function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
   });
 }
 
-import { EFFECT_COLORS } from '@/domain/constants';
-
 type Tab = 'units' | 'effects' | 'sounds';
 
 const AssetLibrary: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('units');
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    military: true, structure: true, prop: true, terrain: true, custom: true,
+  });
   const addObject = useEditorStore((s) => s.addObject);
   const setBackgroundImage = useEditorStore((s) => s.setBackgroundImage);
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
@@ -46,9 +49,14 @@ const AssetLibrary: React.FC = () => {
   const iconInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
 
+  const toggleCategory = (key: string) => {
+    setExpandedCategories((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const handleAddUnit = (unitType: UnitType) => {
+    const category = UNIT_CATEGORY[unitType] as ObjectCategory || 'military';
     const obj: MapObject = {
-      id: uuid(), type: 'unit', unitType, label: unitType,
+      id: uuid(), type: 'unit', unitType, objectCategory: category, label: unitType,
       x: 400 + Math.random() * 200, y: 300 + Math.random() * 200,
       rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
       visible: true, locked: false, width: ICON_RENDER_SIZE, height: ICON_RENDER_SIZE,
@@ -104,28 +112,13 @@ const AssetLibrary: React.FC = () => {
     reader.onload = () => {
       const audioUrl = reader.result as string;
       const label = file.name.replace(/\.[^.]+$/, '').slice(0, 20);
-      // Try to get duration from audio
       const audio = new Audio(audioUrl);
       audio.onloadedmetadata = () => {
         const duration = Math.round(audio.duration * 1000) || 3000;
-        addSound({
-          id: uuid(),
-          startTime: currentTime,
-          duration,
-          audioUrl,
-          label,
-          volume: 1,
-        });
+        addSound({ id: uuid(), startTime: currentTime, duration, audioUrl, label, volume: 1 });
       };
       audio.onerror = () => {
-        addSound({
-          id: uuid(),
-          startTime: currentTime,
-          duration: 3000,
-          audioUrl,
-          label,
-          volume: 1,
-        });
+        addSound({ id: uuid(), startTime: currentTime, duration: 3000, audioUrl, label, volume: 1 });
       };
     };
     reader.readAsDataURL(file);
@@ -179,53 +172,76 @@ const AssetLibrary: React.FC = () => {
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
           </div>
           <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Units</p>
             <p className="text-[8px] font-mono text-muted-foreground/60 mb-2">Click to add or drag onto canvas</p>
-            <div className="grid grid-cols-2 gap-2">
-              {UNIT_TYPES.map((u) => (
-                <button
-                  key={u.type}
-                  onClick={() => handleAddUnit(u.type)}
-                  draggable
-                  onDragStart={(e) => handleUnitDragStart(e, u.type)}
-                  className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
-                >
-                  <UnitIcon unitType={u.type} size={32} />
-                  <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground">{u.label}</span>
-                </button>
-              ))}
-            </div>
-            {customIcons.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-border">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">My Icons</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {customIcons.map((icon) => (
-                    <div key={icon.id} className="relative group">
-                      <button
-                        onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)}
-                        draggable
-                        onDragStart={(e) => handleCustomUnitDragStart(e, icon.dataUrl, icon.label)}
-                        className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-grab active:cursor-grabbing"
-                      >
-                        <img src={icon.dataUrl} alt={icon.label} className="w-8 h-8 object-contain" />
-                        <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">{icon.label}</span>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); removeCustomIcon(icon.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={8} />
-                      </button>
+
+            {/* Collapsible categories */}
+            {UNIT_CATEGORIES.map((cat) => {
+              const items = UNIT_TYPES.filter((u) => u.category === cat.key);
+              const isOpen = expandedCategories[cat.key] ?? true;
+              return (
+                <Collapsible key={cat.key} open={isOpen} onOpenChange={() => toggleCategory(cat.key)}>
+                  <CollapsibleTrigger className="w-full flex items-center gap-1.5 py-1.5 mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    {isOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                    <span className="text-muted-foreground/40 ml-auto">{items.length}</span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid grid-cols-2 gap-1.5 mb-3">
+                      {items.map((u) => (
+                        <button
+                          key={u.type}
+                          onClick={() => handleAddUnit(u.type)}
+                          draggable
+                          onDragStart={(e) => handleUnitDragStart(e, u.type)}
+                          className="flex flex-col items-center gap-1 p-1.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
+                        >
+                          <UnitIcon unitType={u.type} size={28} />
+                          <span className="text-[8px] font-mono uppercase text-muted-foreground group-hover:text-foreground">{u.label}</span>
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="mt-4 pt-3 border-t border-border">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Custom Icon</p>
-              <button onClick={() => iconInputRef.current?.click()} className="w-full py-2.5 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2">
-                <ImageIcon size={14} /> Upload Icon (max {MAX_ICON_KB}KB)
-              </button>
-              <p className="text-[8px] font-mono text-muted-foreground/60 mt-1.5 text-center">Auto-resized to {ICON_RENDER_SIZE}×{ICON_RENDER_SIZE}px</p>
-              <input ref={iconInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleIconUpload} className="hidden" />
-            </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+
+            {/* Custom icons */}
+            <Collapsible open={expandedCategories['custom'] ?? true} onOpenChange={() => toggleCategory('custom')}>
+              <CollapsibleTrigger className="w-full flex items-center gap-1.5 py-1.5 mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                {expandedCategories['custom'] ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                <span>🎨</span>
+                <span>My Icons</span>
+                <span className="text-muted-foreground/40 ml-auto">{customIcons.length}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                {customIcons.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                    {customIcons.map((icon) => (
+                      <div key={icon.id} className="relative group">
+                        <button
+                          onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)}
+                          draggable
+                          onDragStart={(e) => handleCustomUnitDragStart(e, icon.dataUrl, icon.label)}
+                          className="w-full flex flex-col items-center gap-1 p-1.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-grab active:cursor-grabbing"
+                        >
+                          <img src={icon.dataUrl} alt={icon.label} className="w-7 h-7 object-contain" />
+                          <span className="text-[8px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">{icon.label}</span>
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); removeCustomIcon(icon.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Trash2 size={8} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => iconInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2">
+                  <ImageIcon size={14} /> Upload Icon (max {MAX_ICON_KB}KB)
+                </button>
+                <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">Auto-resized to {ICON_RENDER_SIZE}×{ICON_RENDER_SIZE}px</p>
+                <input ref={iconInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleIconUpload} className="hidden" />
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </>
       )}

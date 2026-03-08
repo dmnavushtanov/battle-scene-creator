@@ -2,10 +2,11 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
-import type { MapObject } from '@/domain/models';
+import type { MapObject, UnitType } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
-import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_SYMBOLS, UNIT_LABELS, UNIT_COLOR } from '@/domain/constants';
+import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
 import { CrackEffect, BloodEffect, ExplosionEffect, SmokeEffect, FireEffect, GunshotEffect } from './effects';
+import { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
 
@@ -35,7 +36,7 @@ const MapCanvas: React.FC = () => {
   const lastDragPos = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string | null } | null>(null);
   const isDrawingArrow = useRef(false);
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
@@ -69,6 +70,8 @@ const MapCanvas: React.FC = () => {
   const batchAddKeyframes = useEditorStore((s) => s.batchAddKeyframes);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
+  const copySelected = useEditorStore((s) => s.copySelected);
+  const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
@@ -99,9 +102,22 @@ const MapCanvas: React.FC = () => {
     return () => window.removeEventListener('click', handler);
   }, []);
 
-  // Global Escape key handler: cancel path drawing or deselect
+  // Global keyboard handler: Escape, Ctrl+C, Ctrl+V
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      // Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+
       if (e.key !== 'Escape') return;
 
       // If drawing a path, cancel it
@@ -117,7 +133,7 @@ const MapCanvas: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pathPoints.length, setActiveTool]);
+  }, [pathPoints.length, setActiveTool, copySelected, pasteClipboard]);
 
   const handleWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -273,12 +289,64 @@ const MapCanvas: React.FC = () => {
     }
   };
 
-  // Right-click on stage: finalize path if drawing, otherwise native context menu suppressed
+  // Right-click on stage: finalize path if drawing, or show add menu on empty space
   const handleStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
     if (activeTool === 'path' && pathPoints.length >= 2) {
       finalizePath();
+      return;
     }
+
+    // Show context menu on empty space
+    const target = e.target;
+    const stage = stageRef.current;
+    const container = containerRef.current;
+    if ((target === stage || target.attrs?.id === 'bg-rect') && container) {
+      const rect = container.getBoundingClientRect();
+      setContextMenu({ x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top, objectId: null });
+    }
+  };
+
+  const handleAddUnitAtCursor = (unitType: UnitType) => {
+    if (!contextMenu || !stageRef.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const stageX = (contextMenu.x - (stagePosition.x - rect.left + rect.left)) / stageScale;
+    const stageY = (contextMenu.y - (stagePosition.y - rect.top + rect.top)) / stageScale;
+    // Recalculate from the menu position
+    const sx = (contextMenu.x - stagePosition.x % containerRef.current.offsetWidth) / stageScale;
+    const sy = (contextMenu.y - stagePosition.y % containerRef.current.offsetHeight) / stageScale;
+    // Simpler: use contextMenu pixel pos
+    const cx = (contextMenu.x - stagePosition.x) / stageScale;
+    const cy = (contextMenu.y - stagePosition.y) / stageScale;
+    const category = UNIT_CATEGORY[unitType] || 'military';
+    const obj: MapObject = {
+      id: uuid(), type: 'unit', unitType, objectCategory: category as any,
+      label: unitType, x: cx, y: cy,
+      rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
+      visible: true, locked: false, width: 50, height: 50,
+    };
+    addObject(obj);
+    setActiveTool('select');
+    setSelectedIds([obj.id]);
+    setContextMenu(null);
+  };
+
+  const handleAddEffectAtCursor = (presetIndex: number) => {
+    if (!contextMenu) return;
+    const cx = (contextMenu.x - stagePosition.x) / stageScale;
+    const cy = (contextMenu.y - stagePosition.y) / stageScale;
+    const preset = EFFECT_PRESETS[presetIndex];
+    if (!preset) return;
+    const obj: MapObject = {
+      id: uuid(), type: 'effect', effectType: preset.type, label: preset.label,
+      x: cx, y: cy, rotation: 0, scaleX: 1, scaleY: 1,
+      layer: 'effects', visible: true, locked: false, width: 60, height: 60,
+    };
+    addObject(obj);
+    const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
+    addEffect(obj.id, effect);
+    setSelectedIds([obj.id]);
+    setContextMenu(null);
   };
 
   const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
@@ -317,8 +385,10 @@ const MapCanvas: React.FC = () => {
 
     const unitData = e.dataTransfer.getData('application/unit-type');
     if (unitData) {
+      const category = UNIT_CATEGORY[unitData] || 'military';
       const obj: MapObject = {
         id: uuid(), type: 'unit', unitType: unitData as any,
+        objectCategory: category as any,
         label: e.dataTransfer.getData('application/unit-label') || unitData,
         customIcon: e.dataTransfer.getData('application/custom-icon') || undefined,
         x: stageX, y: stageY, rotation: 0, scaleX: 1, scaleY: 1,
@@ -422,10 +492,13 @@ const MapCanvas: React.FC = () => {
     return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel`;
   };
 
+  // Context menu sub-menu state
+  const [contextSubMenu, setContextSubMenu] = useState<string | null>(null);
+
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative"
+      className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative select-none"
       onContextMenu={(e) => e.preventDefault()}
       onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
       onDrop={handleDrop}
@@ -619,39 +692,95 @@ const MapCanvas: React.FC = () => {
 
       {/* Context menu */}
       {contextMenu && (
-        <div className="absolute z-50 bg-panel border border-border rounded shadow-lg py-1 min-w-[160px]" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
-          {/* Draw Path option — only for units */}
-          {objectsById[contextMenu.objectId]?.type === 'unit' && (
+        <div
+          className="absolute z-50 bg-panel border border-border rounded shadow-lg py-1 min-w-[180px] max-h-[400px] overflow-y-auto scrollbar-tactical"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* If right-clicked on a unit */}
+          {contextMenu.objectId && (
             <>
-              <button onClick={() => startPathForUnit(contextMenu.objectId)}
-                className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
-                <Route size={10} /> Draw Path
-              </button>
-              <div className="h-px bg-border my-1" />
+              {/* Draw Path option — only for units */}
+              {objectsById[contextMenu.objectId]?.type === 'unit' && (
+                <>
+                  <button onClick={() => startPathForUnit(contextMenu.objectId!)}
+                    className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
+                    <Route size={10} /> Draw Path
+                  </button>
+                  <div className="h-px bg-border my-1" />
+                </>
+              )}
+              {Object.values(groups).length > 0 && (
+                <>
+                  <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground">Add to Group</div>
+                  {Object.values(groups).map((g) => (
+                    <button key={g.id} onClick={() => { addToGroup(g.id, [contextMenu.objectId!]); setContextMenu(null); }}
+                      className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} /> {g.name}
+                    </button>
+                  ))}
+                  <div className="h-px bg-border my-1" />
+                </>
+              )}
+              <button onClick={() => { setSelectedIds([contextMenu.objectId!]); setContextMenu(null); }}
+                className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors">Select</button>
+              {getGroupForObject(contextMenu.objectId) && (
+                <button onClick={() => {
+                  const g = getGroupForObject(contextMenu.objectId!);
+                  if (g) useEditorStore.getState().removeFromGroup(g.id, [contextMenu.objectId!]);
+                  setContextMenu(null);
+                }} className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors">
+                  Remove from Group
+                </button>
+              )}
             </>
           )}
-          {Object.values(groups).length > 0 && (
+
+          {/* If right-clicked on empty space — Add menu */}
+          {!contextMenu.objectId && (
             <>
-              <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground">Add to Group</div>
-              {Object.values(groups).map((g) => (
-                <button key={g.id} onClick={() => { addToGroup(g.id, [contextMenu.objectId]); setContextMenu(null); }}
-                  className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} /> {g.name}
+              <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground tracking-wider">Add to Map</div>
+              {UNIT_CATEGORIES.map((cat) => {
+                const items = UNIT_TYPES.filter((u) => u.category === cat.key);
+                const isOpen = contextSubMenu === cat.key;
+                return (
+                  <div key={cat.key}>
+                    <button
+                      onClick={() => setContextSubMenu(isOpen ? null : cat.key)}
+                      className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                    >
+                      <span>{cat.icon}</span>
+                      <span className="flex-1">{cat.label}</span>
+                      <span className="text-muted-foreground text-[8px]">{isOpen ? '▾' : '▸'}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="pl-4 bg-muted/30">
+                        {items.map((u) => (
+                          <button
+                            key={u.type}
+                            onClick={() => handleAddUnitAtCursor(u.type)}
+                            className="w-full text-left px-3 py-1 text-[9px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                          >
+                            <span>{UNIT_SYMBOLS[u.type]}</span> {u.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="h-px bg-border my-1" />
+              <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground tracking-wider">Effects</div>
+              {EFFECT_PRESETS.map((preset, idx) => (
+                <button
+                  key={preset.type}
+                  onClick={() => handleAddEffectAtCursor(idx)}
+                  className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                >
+                  <span>{preset.icon}</span> {preset.label}
                 </button>
               ))}
-              <div className="h-px bg-border my-1" />
             </>
-          )}
-          <button onClick={() => { setSelectedIds([contextMenu.objectId]); setContextMenu(null); }}
-            className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors">Select</button>
-          {getGroupForObject(contextMenu.objectId) && (
-            <button onClick={() => {
-              const g = getGroupForObject(contextMenu.objectId);
-              if (g) useEditorStore.getState().removeFromGroup(g.id, [contextMenu.objectId]);
-              setContextMenu(null);
-            }} className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors">
-              Remove from Group
-            </button>
           )}
         </div>
       )}
