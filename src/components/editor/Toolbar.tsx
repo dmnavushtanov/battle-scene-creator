@@ -13,6 +13,7 @@ import {
   CircleDot,
   StopCircle,
   Loader2,
+  Route,
 } from 'lucide-react';
 
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
