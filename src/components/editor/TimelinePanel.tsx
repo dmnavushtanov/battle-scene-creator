@@ -53,7 +53,7 @@ const TimelinePanel: React.FC = () => {
   const [timeframeLocked, setTimeframeLocked] = useState(false);
   const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
   const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
-
+  const [expandedUnitEffects, setExpandedUnitEffects] = useState<Record<string, boolean>>({});
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
