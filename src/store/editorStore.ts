@@ -218,7 +218,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setRecordDurationSeconds: (dur) => set({ recordDurationSeconds: dur }),
 
     startRecording: () => {
-      const { currentTime, recordDurationSeconds } = get();
+      const { currentTime, recordDurationSeconds, derivedTransforms } = get();
       const durationMs = recordDurationSeconds * 1000;
       const endTime = currentTime + durationMs;
 
@@ -226,6 +226,20 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const scene = get().getActiveScene();
       if (endTime > scene.duration) {
         get()._updateActiveScene((s) => ({ ...s, duration: Math.ceil(endTime / 1000) * 1000 }));
+      }
+
+      // Snap all objects to their interpolated positions at currentTime
+      // so that initial snapshots during recording are correct when re-recording mid-timeline
+      if (Object.keys(derivedTransforms).length > 0) {
+        get()._updateActiveScene((s) => {
+          const updated = { ...s.objectsById };
+          for (const [id, snap] of Object.entries(derivedTransforms)) {
+            if (updated[id]) {
+              updated[id] = { ...updated[id], x: snap.x, y: snap.y, rotation: snap.rotation, scaleX: snap.scaleX, scaleY: snap.scaleY };
+            }
+          }
+          return { ...s, objectsById: updated };
+        });
       }
 
       set({
