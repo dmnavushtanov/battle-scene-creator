@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line } from 'react-konva';
+import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
 
