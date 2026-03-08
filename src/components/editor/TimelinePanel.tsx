@@ -6,7 +6,7 @@ import type { NarrationEvent, OverlayEvent } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
 
 const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
 };
 
 const TimelinePanel: React.FC = () => {

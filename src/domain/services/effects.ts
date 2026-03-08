@@ -66,6 +66,15 @@ export const EFFECT_PRESETS: EffectPreset[] = [
     defaultIntensity: 0.7,
     persistent: false,
   },
+  {
+    type: 'gunshot',
+    label: 'Gunshot',
+    icon: '🔫',
+    description: 'Musket muzzle flash + smoke',
+    defaultDuration: 300,
+    defaultIntensity: 1.0,
+    persistent: false,
+  },
 ];
 
 export function createEffectFromPreset(preset: EffectPreset, startTime: number): UnitEffect {

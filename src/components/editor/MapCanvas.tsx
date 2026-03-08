@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow, Ring } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
-import type { ActiveEffect, EffectType } from '@/domain/models';
+import type { ActiveEffect, EffectType, MapObject } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { v4 as uuid } from 'uuid';
 
@@ -17,11 +17,11 @@ const UNIT_LABELS: Record<string, string> = {
 const UNIT_COLOR = '#d4a843';
 
 const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
-  explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥',
+  explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥', gunshot: '🔫',
 };
 
 const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
 };
 
 const customIconCache = new Map<string, HTMLImageElement>();
@@ -68,6 +68,9 @@ const MapCanvas: React.FC = () => {
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string } | null>(null);
+  // Arrow drawing state
+  const isDrawingArrow = useRef(false);
+  const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -145,7 +148,7 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
-  // Middle-button panning only
+  // Middle-button panning + left-button arrow drawing
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
       e.evt.preventDefault();
@@ -157,24 +160,71 @@ const MapCanvas: React.FC = () => {
         stage.container().style.cursor = 'grabbing';
       }
     }
+    // Arrow drawing on left-click when arrow tool is active
+    if (e.evt.button === 0 && activeTool === 'arrow') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const stageX = (pointer.x - stagePosition.x) / stageScale;
+      const stageY = (pointer.y - stagePosition.y) / stageScale;
+      isDrawingArrow.current = true;
+      setDrawingArrow({ x1: stageX, y1: stageY, x2: stageX, y2: stageY });
+    }
   };
 
   const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!isPanning.current || !panStart.current) return;
-    const stage = stageRef.current;
-    if (!stage) return;
-    const pointer = stage.getPointerPosition()!;
-    const dx = pointer.x - panStart.current.x;
-    const dy = pointer.y - panStart.current.y;
-    setStagePosition({ x: panStart.current.stageX + dx, y: panStart.current.stageY + dy });
+    if (isPanning.current && panStart.current) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const dx = pointer.x - panStart.current.x;
+      const dy = pointer.y - panStart.current.y;
+      setStagePosition({ x: panStart.current.stageX + dx, y: panStart.current.stageY + dy });
+    }
+    // Arrow drawing preview
+    if (isDrawingArrow.current && drawingArrow) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const stageX = (pointer.x - stagePosition.x) / stageScale;
+      const stageY = (pointer.y - stagePosition.y) / stageScale;
+      setDrawingArrow({ ...drawingArrow, x2: stageX, y2: stageY });
+    }
   };
 
-  const handleStageMouseUp = () => {
+  const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isPanning.current) {
       isPanning.current = false;
       panStart.current = null;
       const stage = stageRef.current;
       if (stage) stage.container().style.cursor = 'default';
+    }
+    // Finalize arrow
+    if (isDrawingArrow.current && drawingArrow) {
+      isDrawingArrow.current = false;
+      const dx = drawingArrow.x2 - drawingArrow.x1;
+      const dy = drawingArrow.y2 - drawingArrow.y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 10) {
+        const obj: MapObject = {
+          id: uuid(),
+          type: 'drawing',
+          drawTool: 'arrow',
+          x: 0,
+          y: 0,
+          points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
+          rotation: 0,
+          scaleX: 1,
+          scaleY: 1,
+          layer: 'drawings',
+          visible: true,
+          locked: false,
+          color: '#d4a843',
+        };
+        addObject(obj);
+        setSelectedIds([obj.id]);
+      }
+      setDrawingArrow(null);
     }
   };
 
@@ -370,6 +420,20 @@ const MapCanvas: React.FC = () => {
               </Group>
             );
           })}
+          {/* Arrow drawing preview */}
+          {drawingArrow && (
+            <Arrow
+              points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]}
+              stroke="#d4a843"
+              strokeWidth={3}
+              dash={[10, 6]}
+              pointerLength={12}
+              pointerWidth={10}
+              fill="#d4a843"
+              opacity={0.6}
+              listening={false}
+            />
+          )}
         </Layer>
 
         <Layer>
@@ -397,9 +461,11 @@ const MapCanvas: React.FC = () => {
             const hasExplosion = unitEffects.some((e) => e.type === 'explosion' && !e.ended);
             const hasSmoke = unitEffects.some((e) => e.type === 'smoke' && !e.ended);
             const hasFire = unitEffects.some((e) => e.type === 'fire' && !e.ended);
+            const hasGunshot = unitEffects.some((e) => e.type === 'gunshot' && !e.ended);
             const explosionEffect = unitEffects.find((e) => e.type === 'explosion' && !e.ended);
             const smokeEffect = unitEffects.find((e) => e.type === 'smoke' && !e.ended);
             const fireEffect = unitEffects.find((e) => e.type === 'fire' && !e.ended);
+            const gunshotEffect = unitEffects.find((e) => e.type === 'gunshot' && !e.ended);
 
             const group = getGroupForObject(unit.id);
 
@@ -672,6 +738,38 @@ const MapCanvas: React.FC = () => {
                           <Circle key={`ember-${i}`} x={emberX} y={emberY} radius={1.2} fill="#ffcc00" opacity={intensity * 0.4 * (0.5 + Math.sin(currentTime * 0.02 + i) * 0.5)} listening={false} />
                         );
                       })}
+                    </>
+                  );
+                })()}
+
+                {/* Gunshot / Musket muzzle flash */}
+                {hasGunshot && gunshotEffect && (() => {
+                  const p = gunshotEffect.progress;
+                  const intensity = gunshotEffect.intensity;
+                  const fadeOut = Math.max(0, 1 - p * 2);
+                  const flashSize = size * 0.5 * (1 - p * 0.5);
+                  const smokeP = Math.max(0, (p - 0.3) / 0.7);
+                  return (
+                    <>
+                      {/* Muzzle flash - bright burst */}
+                      <Circle x={size / 2 + 8} y={0} radius={flashSize} fill="#fffbe0" opacity={fadeOut * intensity * 0.95} listening={false} />
+                      <Circle x={size / 2 + 12} y={0} radius={flashSize * 0.7} fill="#ffdd00" opacity={fadeOut * intensity * 0.8} listening={false} />
+                      <Circle x={size / 2 + 6} y={0} radius={flashSize * 1.3} fill="#ff880044" opacity={fadeOut * intensity * 0.5} listening={false} />
+                      {/* Flash rays */}
+                      {[0, 30, -30, 15, -15].map((angle, i) => {
+                        const rad = (angle * Math.PI) / 180;
+                        const len = size * 0.6 * fadeOut;
+                        return (
+                          <Line key={`flash-${i}`} points={[size / 2 + 8, 0, size / 2 + 8 + Math.cos(rad) * len, Math.sin(rad) * len]} stroke="#ffdd00" strokeWidth={1.5 - i * 0.2} opacity={fadeOut * intensity * 0.6} lineCap="round" listening={false} />
+                        );
+                      })}
+                      {/* Small smoke puff after flash */}
+                      {smokeP > 0 && (
+                        <>
+                          <Circle x={size / 2 + 15 + smokeP * 10} y={-smokeP * 5} radius={4 + smokeP * 8} fill="#aaaaaa" opacity={intensity * 0.3 * (1 - smokeP)} listening={false} />
+                          <Circle x={size / 2 + 12 + smokeP * 6} y={-smokeP * 3} radius={3 + smokeP * 5} fill="#cccccc" opacity={intensity * 0.2 * (1 - smokeP)} listening={false} />
+                        </>
+                      )}
                     </>
                   );
                 })()}

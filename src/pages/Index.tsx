@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
@@ -14,6 +14,40 @@ const NarrationOverlay: React.FC = () => {
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTime = useEditorStore((s) => s.currentTime);
   const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  // Play narration audio during playback
+  useEffect(() => {
+    if (!isPlaying) {
+      // Stop all audio when not playing
+      audioRefs.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
+      return;
+    }
+    for (const n of activeNarrations) {
+      if (n.audioUrl) {
+        let audio = audioRefs.current.get(n.id);
+        if (!audio) {
+          audio = new Audio(n.audioUrl);
+          audioRefs.current.set(n.id, audio);
+        }
+        if (audio.paused) {
+          const offset = (currentTime - n.startTime) / 1000;
+          if (offset >= 0 && offset < n.duration / 1000) {
+            audio.currentTime = Math.max(0, offset);
+            audio.play().catch(() => {});
+          }
+        }
+      }
+    }
+    // Stop audio for narrations no longer active
+    audioRefs.current.forEach((audio, id) => {
+      if (!activeNarrations.find((n) => n.id === id)) {
+        audio.pause();
+        audio.currentTime = 0;
+        audioRefs.current.delete(id);
+      }
+    });
+  }, [isPlaying, activeNarrations, currentTime]);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
