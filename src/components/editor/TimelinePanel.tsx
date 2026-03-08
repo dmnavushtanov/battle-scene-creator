@@ -58,12 +58,20 @@ const TimelinePanel: React.FC = () => {
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const time = Math.max(0, Math.min(totalDuration, x / pxPerMs));
+  const handleRulerScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    const ruler = e.currentTarget;
+    const rect = ruler.getBoundingClientRect();
+    const calcTime = (clientX: number) => Math.max(0, Math.min(totalDuration, (clientX - rect.left) / pxPerMs));
     if (isPlaying) setIsPlaying(false);
-    seekTo(time);
+    seekTo(calcTime(e.clientX));
+    const onMove = (me: MouseEvent) => {
+      const t = calcTime(me.clientX);
+      seekTo(t);
+      computeDerivedTransforms(t);
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const totalKeyframes = Object.values(activeScene.keyframesByObjectId).reduce(
@@ -353,7 +361,7 @@ const TimelinePanel: React.FC = () => {
       {/* Timeline tracks */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
-        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline' : ''}`} onClick={handleTimelineClick} style={{ width: timelineWidth }}>
+        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
           )}
@@ -568,14 +576,25 @@ const TimelinePanel: React.FC = () => {
                     {unitEffects.length}fx
                   </button>
                 )}
-                {/* Small colored dots as quick indicators */}
-                {unitEffects.map((eff, effIdx) => {
+                {/* Effect mini-bars on unit track */}
+                {unitEffects.map((eff) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                  const barLeft = eff.startTime * pxPerMs;
+                  const barWidth = Math.max(8, eff.duration * pxPerMs);
+                  const selectedEffectId = useEditorStore.getState().selectedEffectId;
+                  const isEffSel = selectedEffectId?.objectId === unit.id && selectedEffectId?.effectId === eff.id;
                   return (
                     <div
                       key={eff.id}
-                      className="absolute bottom-0.5 w-2 h-2 rounded-full pointer-events-none"
-                      style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }}
+                      className={`absolute bottom-0 h-[5px] rounded-sm cursor-pointer hover:h-[7px] transition-all ${isEffSel ? 'ring-1 ring-foreground/60' : ''}`}
+                      style={{ left: barLeft, width: barWidth, backgroundColor: effColor + (isEffSel ? 'cc' : '88') }}
+                      title={`${eff.type} · ${(eff.duration / 1000).toFixed(1)}s`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIds([unit.id]);
+                        useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
+                        setExpandedUnitEffects(prev => ({ ...prev, [unit.id]: true }));
+                      }}
                     />
                   );
                 })}
