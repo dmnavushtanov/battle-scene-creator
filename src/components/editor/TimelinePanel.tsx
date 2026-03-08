@@ -85,9 +85,21 @@ const TimelinePanel: React.FC = () => {
   const overlayEvents = activeScene.overlayEvents || [];
   const groups = activeScene.groups || {};
 
+  // Collect ALL effects from all objects into a single flat list for the effects row
+  const allEffects: { objectId: string; objectLabel: string; effect: typeof activeScene.effectsByObjectId[string][number] }[] = [];
+  for (const unit of units) {
+    const effs = activeScene.effectsByObjectId[unit.id] || [];
+    for (const eff of effs) {
+      allEffects.push({ objectId: unit.id, objectLabel: unit.label || unit.unitType || 'Effect', effect: eff });
+    }
+  }
+
   const handleAddNarration = () => {
+    // Find end of last narration to avoid overlap
+    const lastEnd = narrationEvents.reduce((max, n) => Math.max(max, n.startTime + n.duration), 0);
+    const startAt = lastEnd > currentTime ? lastEnd + 100 : currentTime;
     const event: NarrationEvent = {
-      id: uuid(), type: 'text', startTime: currentTime, duration: 3000,
+      id: uuid(), type: 'text', startTime: startAt, duration: 3000,
       text: 'Narration text...', position: 'bottom', fontSize: 24,
       fontStyle: 'normal', textAnimation: 'fade', textColor: '#ffffff', bgOpacity: 0.6,
     };
@@ -95,8 +107,10 @@ const TimelinePanel: React.FC = () => {
   };
 
   const handleAddOverlay = () => {
+    const lastEnd = overlayEvents.reduce((max, o) => Math.max(max, o.startTime + o.duration), 0);
+    const startAt = lastEnd > currentTime ? lastEnd + 100 : currentTime;
     const event: OverlayEvent = {
-      id: uuid(), startTime: currentTime, duration: 4000, imageUrl: '',
+      id: uuid(), startTime: startAt, duration: 4000, imageUrl: '',
       imagePosition: 'center', imageScale: 1, backgroundEffect: 'blur+dim',
       dimOpacity: 0.7, title: 'Title', subtitle: 'Subtitle',
       textPosition: 'below-image', transition: 'fade',
@@ -133,10 +147,47 @@ const TimelinePanel: React.FC = () => {
     window.addEventListener('mouseup', onUp);
   };
 
+  /** Render a timeline block with move + resize handles */
+  const TimelineBlock: React.FC<{
+    left: number;
+    width: number;
+    label: string;
+    sublabel?: string;
+    isSelected: boolean;
+    colorClass: string;
+    borderClass: string;
+    onClick: (e: React.MouseEvent) => void;
+    onDelete?: (e: React.MouseEvent) => void;
+    onMoveDown: (e: React.MouseEvent) => void;
+    onResizeLeft: (e: React.MouseEvent) => void;
+    onResizeRight: (e: React.MouseEvent) => void;
+  }> = ({ left, width, label, sublabel, isSelected, colorClass, borderClass, onClick, onDelete, onMoveDown, onResizeLeft, onResizeRight }) => (
+    <div
+      className={`absolute top-1 h-4 rounded-sm flex items-center px-1 group cursor-grab active:cursor-grabbing ${isSelected ? `${colorClass} border-2 ${borderClass}` : `${colorClass.replace('/40', '/20')} border ${borderClass.replace('border-', 'border-')}/40 hover:${colorClass.replace('/40', '/30')}`}`}
+      style={{ left, width: Math.max(width, 24) }}
+      title={sublabel ? `${label} · ${sublabel}` : label}
+      onClick={onClick}
+      onMouseDown={onMoveDown}
+    >
+      <span className="text-[7px] font-mono truncate pointer-events-none flex-1">{label}</span>
+      {onDelete && (
+        <button onClick={onDelete} className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"><Trash2 size={8} /></button>
+      )}
+      {/* Left resize */}
+      <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-l-sm pointer-events-auto"
+        style={{ background: 'rgba(255,255,255,0.15)' }}
+        onMouseDown={(e) => { e.stopPropagation(); onResizeLeft(e); }} />
+      {/* Right resize */}
+      <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-r-sm pointer-events-auto"
+        style={{ background: 'rgba(255,255,255,0.15)' }}
+        onMouseDown={(e) => { e.stopPropagation(); onResizeRight(e); }} />
+    </div>
+  );
+
   return (
     <div className="bg-timeline border-t border-border flex flex-col h-full">
-      {/* Controls bar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+      {/* Controls bar - sticky */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 sticky top-0 z-10 bg-timeline">
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
         <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -170,34 +221,37 @@ const TimelinePanel: React.FC = () => {
         {/* Narration track */}
         <div className="relative h-6 mb-0.5 rounded-sm border border-accent/30 bg-accent/5" style={{ width: timelineWidth }}>
           <span className="absolute left-1 top-0.5 text-[9px] font-mono text-accent/70 uppercase pointer-events-none flex items-center gap-1">
-            📝 Narration
-            <button onClick={(e) => { e.stopPropagation(); handleAddNarration(); }} className="ml-1 hover:text-accent transition-colors pointer-events-auto">
-              <Plus size={10} />
-            </button>
+            📝 Narr
           </span>
+          <button onClick={(e) => { e.stopPropagation(); handleAddNarration(); }}
+            className="absolute right-1 top-0.5 text-accent/70 hover:text-accent transition-colors z-10"
+            title="Add narration">
+            <Plus size={12} />
+          </button>
           {narrationEvents.map((n) => {
             const isSelected = selectedNarrationId === n.id;
             return (
-              <div
+              <TimelineBlock
                 key={n.id}
-                className={`absolute top-1 h-4 rounded-sm flex items-center px-1 group cursor-pointer ${isSelected ? 'bg-accent/40 border-2 border-accent' : 'bg-accent/20 border border-accent/40 hover:bg-accent/30'}`}
-                style={{ left: n.startTime * pxPerMs, width: Math.max(n.duration * pxPerMs, 20) }}
-                title={`Click to edit · ${n.text?.slice(0, 30) || 'Narration'}`}
+                left={n.startTime * pxPerMs}
+                width={n.duration * pxPerMs}
+                label={n.text?.slice(0, 15) || '...'}
+                sublabel={`${(n.duration / 1000).toFixed(1)}s`}
+                isSelected={isSelected}
+                colorClass="bg-accent/40"
+                borderClass="border-accent"
                 onClick={(e) => { e.stopPropagation(); setSelectedNarrationId(n.id); }}
-              >
-                <span className="text-[7px] font-mono text-accent truncate pointer-events-none">{n.text?.slice(0, 15) || '...'}</span>
-                <button onClick={(e) => { e.stopPropagation(); removeNarration(n.id); }} className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={8} /></button>
-                {/* Left resize */}
-                <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-accent/40 rounded-l-sm"
-                  onMouseDown={makeBlockDragHandler('resize-left', (st, dur) => {
-                    useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
-                  }, n.startTime, n.duration)} />
-                {/* Right resize */}
-                <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-accent/40 rounded-r-sm"
-                  onMouseDown={makeBlockDragHandler('resize-right', (st, dur) => {
-                    useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
-                  }, n.startTime, n.duration)} />
-              </div>
+                onDelete={(e) => { e.stopPropagation(); removeNarration(n.id); }}
+                onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                }, n.startTime, n.duration)}
+                onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                }, n.startTime, n.duration)}
+                onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                }, n.startTime, n.duration)}
+              />
             );
           })}
         </div>
@@ -205,42 +259,86 @@ const TimelinePanel: React.FC = () => {
         {/* Overlay track */}
         <div className="relative h-6 mb-0.5 rounded-sm border border-secondary/30 bg-secondary/5" style={{ width: timelineWidth }}>
           <span className="absolute left-1 top-0.5 text-[9px] font-mono text-secondary-foreground/70 uppercase pointer-events-none flex items-center gap-1">
-            🖼️ Overlay
-            <button onClick={(e) => { e.stopPropagation(); handleAddOverlay(); }} className="ml-1 hover:text-secondary-foreground transition-colors pointer-events-auto">
-              <Plus size={10} />
-            </button>
+            🖼️ Ovrl
           </span>
+          <button onClick={(e) => { e.stopPropagation(); handleAddOverlay(); }}
+            className="absolute right-1 top-0.5 text-secondary-foreground/70 hover:text-secondary-foreground transition-colors z-10"
+            title="Add overlay">
+            <Plus size={12} />
+          </button>
           {overlayEvents.map((o) => {
             const isSelected = selectedOverlayId === o.id;
             return (
-              <div
+              <TimelineBlock
                 key={o.id}
-                className={`absolute top-1 h-4 rounded-sm flex items-center px-1 group cursor-pointer ${isSelected ? 'bg-secondary/40 border-2 border-secondary' : 'bg-secondary/20 border border-secondary/40 hover:bg-secondary/30'}`}
-                style={{ left: o.startTime * pxPerMs, width: Math.max(o.duration * pxPerMs, 20) }}
-                title={`Click to edit · ${o.title || 'Overlay'}`}
+                left={o.startTime * pxPerMs}
+                width={o.duration * pxPerMs}
+                label={o.title || 'Overlay'}
+                sublabel={`${(o.duration / 1000).toFixed(1)}s`}
+                isSelected={isSelected}
+                colorClass="bg-secondary/40"
+                borderClass="border-secondary"
                 onClick={(e) => { e.stopPropagation(); setSelectedOverlayId(o.id); }}
-              >
-                <span className="text-[7px] font-mono text-secondary-foreground truncate pointer-events-none">{o.title || 'Overlay'}</span>
-                <button onClick={(e) => { e.stopPropagation(); removeOverlay(o.id); }} className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={8} /></button>
-                {/* Left resize */}
-                <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-secondary/40 rounded-l-sm"
-                  onMouseDown={makeBlockDragHandler('resize-left', (st, dur) => {
-                    useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
-                  }, o.startTime, o.duration)} />
-                {/* Right resize */}
-                <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-secondary/40 rounded-r-sm"
-                  onMouseDown={makeBlockDragHandler('resize-right', (st, dur) => {
-                    useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
-                  }, o.startTime, o.duration)} />
-              </div>
+                onDelete={(e) => { e.stopPropagation(); removeOverlay(o.id); }}
+                onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                }, o.startTime, o.duration)}
+                onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                }, o.startTime, o.duration)}
+                onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                }, o.startTime, o.duration)}
+              />
             );
           })}
         </div>
 
-        {/* Unit tracks */}
+        {/* Combined Effects track - all effects from all units stacked on one row */}
+        {allEffects.length > 0 && (
+          <div className="relative h-6 mb-0.5 rounded-sm border border-destructive/30 bg-destructive/5" style={{ width: timelineWidth }}>
+            <span className="absolute left-1 top-0.5 text-[9px] font-mono text-destructive/70 uppercase pointer-events-none">
+              💥 FX ({allEffects.length})
+            </span>
+            {allEffects.map(({ objectId, objectLabel, effect: eff }) => {
+              const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
+              const effLeft = eff.startTime * pxPerMs;
+              const effWidth = Math.max(eff.duration * pxPerMs, 16);
+              return (
+                <div
+                  key={eff.id}
+                  className="absolute top-1 h-4 bg-destructive/25 border border-destructive/40 rounded-sm flex items-center justify-center cursor-grab hover:bg-destructive/35 group/eff active:cursor-grabbing"
+                  style={{ left: effLeft, width: effWidth }}
+                  title={`${preset?.label || eff.type} on ${objectLabel} · ${(eff.startTime / 1000).toFixed(1)}s · ${(eff.duration / 1000).toFixed(1)}s`}
+                  onClick={(e) => { e.stopPropagation(); setSelectedIds([objectId]); }}
+                  onMouseDown={makeBlockDragHandler('move', (st, dur) => {
+                    useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
+                  }, eff.startTime, eff.duration)}
+                >
+                  <span className="text-[7px] pointer-events-none">{preset?.icon || '?'}</span>
+                  {/* Left resize handle */}
+                  <div
+                    className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-l-sm"
+                    onMouseDown={(me) => { me.stopPropagation(); makeBlockDragHandler('resize-left', (st, dur) => {
+                      useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
+                    }, eff.startTime, eff.duration)(me); }}
+                  />
+                  {/* Right resize handle */}
+                  <div
+                    className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-r-sm"
+                    onMouseDown={(me) => { me.stopPropagation(); makeBlockDragHandler('resize-right', (st, dur) => {
+                      useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
+                    }, eff.startTime, eff.duration)(me); }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Unit tracks - keyframes only (effects shown in combined FX row) */}
         {units.slice(0, 15).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
-          const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
           const group = Object.values(groups).find((g) => g.memberIds.includes(unit.id));
 
@@ -260,45 +358,11 @@ const TimelinePanel: React.FC = () => {
             >
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
                 {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
-                {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}{unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
+                {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
               </span>
               {unitKfs.map((kf, idx) => (
                 <div key={`kf-${idx}`} className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none" style={{ left: kf.time * pxPerMs - 6 }} title={`t=${formatTime(kf.time)}`} />
               ))}
-              {/* Effect markers - draggable + resizable */}
-              {unitEffects.map((eff) => {
-                const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
-                const effLeft = eff.startTime * pxPerMs;
-                const effWidth = Math.max(eff.duration * pxPerMs, 12);
-                return (
-                  <div
-                    key={eff.id}
-                    className="absolute top-1 h-4 bg-destructive/20 border border-destructive/30 rounded-sm flex items-center justify-center cursor-grab hover:bg-destructive/30 group/eff active:cursor-grabbing"
-                    style={{ left: effLeft, width: effWidth }}
-                    title={`${preset?.label || eff.type} — drag to move, edges to resize`}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={makeBlockDragHandler('move', (st, dur) => {
-                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)}
-                  >
-                    <span className="text-[7px] pointer-events-none">{preset?.icon || '?'}</span>
-                    {/* Left resize handle */}
-                    <div
-                      className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-l-sm"
-                      onMouseDown={makeBlockDragHandler('resize-left', (st, dur) => {
-                        useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                      }, eff.startTime, eff.duration)}
-                    />
-                    {/* Right resize handle */}
-                    <div
-                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-r-sm"
-                      onMouseDown={makeBlockDragHandler('resize-right', (st, dur) => {
-                        useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                      }, eff.startTime, eff.duration)}
-                    />
-                  </div>
-                );
-              })}
             </div>
           );
         })}

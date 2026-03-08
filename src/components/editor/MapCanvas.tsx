@@ -16,6 +16,10 @@ const UNIT_LABELS: Record<string, string> = {
 };
 const UNIT_COLOR = '#d4a843';
 
+const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
+  explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥',
+};
+
 const customIconCache = new Map<string, HTMLImageElement>();
 
 function useCustomIconCache(sources: string[]) {
@@ -46,7 +50,6 @@ function getShakeOffset(effects: ActiveEffect[], time: number): { dx: number; dy
   return { dx, dy };
 }
 
-/** Seeded pseudo-random for deterministic effect visuals */
 function seededRandom(seed: number): number {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -61,6 +64,7 @@ const MapCanvas: React.FC = () => {
   const isPanning = useRef(false);
   const panButton = useRef<number>(0);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string } | null>(null);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -86,6 +90,7 @@ const MapCanvas: React.FC = () => {
   const setStagePosition = useEditorStore((s) => s.setStagePosition);
   const addObject = useEditorStore((s) => s.addObject);
   const addEffect = useEditorStore((s) => s.addEffect);
+  const addToGroup = useEditorStore((s) => s.addToGroup);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
@@ -110,6 +115,13 @@ const MapCanvas: React.FC = () => {
     img.onload = () => setBgImage(img);
   }, [backgroundImage]);
 
+  // Close context menu on click elsewhere
+  useEffect(() => {
+    const handler = () => setContextMenu(null);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, []);
+
   const handleWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
@@ -132,13 +144,11 @@ const MapCanvas: React.FC = () => {
 
   const panDidMove = useRef(false);
 
-  // ONLY middle-button panning. Left-click on empty space = deselect only.
+  // Middle-button panning only
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    const isMiddleButton = e.evt.button === 1;
-    if (isMiddleButton) {
+    if (e.evt.button === 1) {
       e.evt.preventDefault();
       isPanning.current = true;
-      panButton.current = 1;
       panDidMove.current = false;
       const stage = stageRef.current;
       if (stage) {
@@ -173,9 +183,14 @@ const MapCanvas: React.FC = () => {
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0) return;
     const target = e.target;
-    const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect' || target.attrs.id?.startsWith('grid-');
-    if (isEmptySpace) {
+    const stage = stageRef.current;
+    // Check if we clicked the stage itself or the background rect or a grid line
+    const isStage = target === stage;
+    const isBgRect = target.attrs?.id === 'bg-rect';
+    const isGrid = typeof target.attrs?.id === 'string' && target.attrs.id.startsWith('grid-');
+    if (isStage || isBgRect || isGrid) {
       setSelectedIds([]);
+      setContextMenu(null);
     }
   };
 
@@ -222,7 +237,6 @@ const MapCanvas: React.FC = () => {
     const stageX = (e.clientX - rect.left - stagePosition.x) / stageScale;
     const stageY = (e.clientY - rect.top - stagePosition.y) / stageScale;
 
-    // Check if dropped on a unit
     const hitUnit = objectOrder.map((id) => objectsById[id]).filter((o) => o?.type === 'unit').find((u) => {
       const s = (u.width || 50) / 2;
       return Math.abs(stageX - u.x) < s && Math.abs(stageY - u.y) < s;
@@ -232,7 +246,6 @@ const MapCanvas: React.FC = () => {
       const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
       addEffect(hitUnit.id, effect);
     } else {
-      // Create standalone map effect object
       const obj = {
         id: uuid(),
         type: 'effect' as const,
@@ -250,7 +263,6 @@ const MapCanvas: React.FC = () => {
         height: 60,
       };
       addObject(obj);
-      // Add the effect data
       const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
       addEffect(obj.id, effect);
       setSelectedIds([obj.id]);
@@ -259,7 +271,22 @@ const MapCanvas: React.FC = () => {
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }, []);
 
-  // Find group for an object
+  // Right-click handler
+  const handleObjectContextMenu = (id: string, e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.evt.preventDefault();
+    e.cancelBubble = true;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    setContextMenu({
+      x: e.evt.clientX - rect.left,
+      y: e.evt.clientY - rect.top,
+      objectId: id,
+    });
+  };
+
   const getGroupForObject = (objId: string) => {
     for (const group of Object.values(groups)) {
       if (group.memberIds.includes(objId)) return group;
@@ -267,7 +294,6 @@ const MapCanvas: React.FC = () => {
     return null;
   };
 
-  // Highlight all group members when one member is selected
   const highlightedGroupMemberIds = new Set<string>();
   let highlightGroupColor = '';
   for (const sid of selectedIds) {
@@ -373,6 +399,9 @@ const MapCanvas: React.FC = () => {
 
             const group = getGroupForObject(unit.id);
 
+            // Get static effects for standalone effect label
+            const staticEffects = isStandaloneEffect ? (activeScene.effectsByObjectId[unit.id] || []) : [];
+
             return (
               <Group
                 key={unit.id}
@@ -392,6 +421,7 @@ const MapCanvas: React.FC = () => {
                     setSelectedIds([unit.id]);
                   }
                 }}
+                onContextMenu={(e) => handleObjectContextMenu(unit.id, e)}
                 onDragStart={(e) => handleDragStart(unit.id, e)}
                 onDragMove={(e) => handleDragMove(unit.id, e)}
                 onDragEnd={(e) => handleDragEnd(unit.id, e)}
@@ -428,19 +458,24 @@ const MapCanvas: React.FC = () => {
                   </>
                 )}
 
-                {/* Standalone effect placeholder */}
+                {/* Standalone effect placeholder - improved visuals */}
                 {isStandaloneEffect && (
-                  <Circle x={0} y={0} radius={size * 0.35} fill="transparent" stroke="#ff660066" strokeWidth={1} dash={[3, 3]} listening={true} />
+                  <>
+                    <Circle x={0} y={0} radius={size * 0.4} fill="#ff660015" stroke="#ff660066" strokeWidth={1.5} dash={[4, 3]} listening={true} />
+                    <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
+                    <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#ff8844" align="center" listening={false} />
+                    {/* Show timing info */}
+                    {staticEffects.length > 0 && (
+                      <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill="#ff884488" align="center" listening={false} />
+                    )}
+                  </>
                 )}
 
-                {/* === IMPROVED EFFECT OVERLAYS === */}
-
-                {/* CRACK: realistic fracture web */}
+                {/* === EFFECT OVERLAYS === */}
                 {hasCrack && (() => {
                   const s2 = size / 2;
                   const ce = unitEffects.find((e) => e.type === 'crack');
                   const op = ce ? Math.min(1, ce.ended ? 0.9 : ce.progress * 2) : 0.9;
-                  // Generate deterministic crack pattern
                   const cracks: { points: number[]; w: number; shade: string }[] = [
                     { points: [0, -s2*0.1, -2, 0, 1, s2*0.2, -1, s2*0.55], w: 2.2, shade: '#888' },
                     { points: [-2, 0, -s2*0.35, -s2*0.15, -s2*0.5, -s2*0.3], w: 1.5, shade: '#999' },
@@ -453,25 +488,21 @@ const MapCanvas: React.FC = () => {
                   ];
                   return (
                     <>
-                      {/* Shadow layer for depth */}
                       {cracks.slice(0, 5).map((c, i) => (
                         <Line key={`cs-${i}`} points={c.points.map((p, j) => p + (j % 2 === 0 ? 0.8 : 0.8))} stroke="#00000066" strokeWidth={c.w + 1} opacity={op * 0.4} lineCap="round" lineJoin="round" listening={false} />
                       ))}
                       {cracks.map((c, i) => (
                         <Line key={`c-${i}`} points={c.points} stroke={c.shade} strokeWidth={c.w} opacity={op * (1 - i * 0.05)} lineCap="round" lineJoin="round" listening={false} />
                       ))}
-                      {/* Bright highlight along main crack */}
                       <Line points={[0, -s2*0.1, -2, 0, 1, s2*0.2]} stroke="#ffffff44" strokeWidth={0.5} opacity={op * 0.3} lineCap="round" listening={false} />
                     </>
                   );
                 })()}
 
-                {/* BLOOD: organic splatter with irregular shapes */}
                 {hasBlood && (() => {
                   const be = unitEffects.find((e) => e.type === 'blood');
                   const op = be ? Math.min(1, be.ended ? 0.8 : be.progress * 2) : 0.8;
                   const s2 = size / 2;
-                  // Multiple splatter spots with varying sizes
                   const splatters = [
                     { x: -1, y: 2, r: s2 * 0.25, color: '#8b0000' },
                     { x: 3, y: -3, r: s2 * 0.18, color: '#a00000' },
@@ -486,51 +517,37 @@ const MapCanvas: React.FC = () => {
                   ];
                   return (
                     <>
-                      {/* Dark pool underneath */}
                       <Circle x={0} y={2} radius={s2 * 0.3} fill="#4a000033" opacity={op * 0.5} listening={false} />
-                      {/* Splatters */}
                       {splatters.map((sp, i) => (
                         <React.Fragment key={`bl-${i}`}>
                           <Circle x={sp.x} y={sp.y} radius={sp.r} fill={sp.color} opacity={op * (0.7 - i * 0.05)} listening={false} />
-                          {/* Irregular edge by overlapping offset circles */}
                           <Circle x={sp.x + sp.r * 0.3} y={sp.y - sp.r * 0.2} radius={sp.r * 0.6} fill={sp.color} opacity={op * 0.5} listening={false} />
                           <Circle x={sp.x - sp.r * 0.25} y={sp.y + sp.r * 0.35} radius={sp.r * 0.5} fill={sp.color} opacity={op * 0.45} listening={false} />
                         </React.Fragment>
                       ))}
-                      {/* Drip trails */}
                       {drips.map((d, i) => (
                         <React.Fragment key={`bd-${i}`}>
                           <Line points={[d.x, d.sy, d.x - 0.5, (d.sy + d.ey) / 2, d.x + 0.3, d.ey]} stroke="#8b0000" strokeWidth={d.w} opacity={op * 0.6} lineCap="round" tension={0.4} listening={false} />
-                          {/* Drip drop at bottom */}
                           <Circle x={d.x + 0.3} y={d.ey + 2} radius={d.w * 0.8} fill="#700000" opacity={op * 0.5} listening={false} />
                         </React.Fragment>
                       ))}
-                      {/* Specular highlight */}
                       <Circle x={-1} y={1} radius={s2 * 0.08} fill="#ff4444" opacity={op * 0.2} listening={false} />
                     </>
                   );
                 })()}
 
-                {/* EXPLOSION: cinematic fireball + shockwave + debris */}
                 {hasExplosion && explosionEffect && (() => {
                   const p = explosionEffect.progress;
                   const intensity = explosionEffect.intensity;
                   const fadeOut = Math.max(0, 1 - p * 1.2);
                   return (
                     <>
-                      {/* Outer shockwave ring - expanding fast */}
                       <Circle x={0} y={0} radius={size * (0.4 + p * 1.2)} stroke="#ff880044" strokeWidth={4 * fadeOut} fill="transparent" opacity={fadeOut * intensity * 0.5} listening={false} />
-                      {/* Second shockwave ring */}
                       <Circle x={0} y={0} radius={size * (0.2 + p * 0.9)} stroke="#ff660033" strokeWidth={2 * fadeOut} fill="transparent" opacity={fadeOut * intensity * 0.4} listening={false} />
-                      {/* Core flash - white hot, shrinks */}
                       <Circle x={0} y={0} radius={size * 0.35 * (1 - p * 0.6)} fill="#fffbe8" opacity={fadeOut * intensity * 0.95} listening={false} />
-                      {/* Inner fireball - orange */}
                       <Circle x={0} y={0} radius={size * 0.45 * (0.5 + p * 0.5)} fill="#ff6600" opacity={fadeOut * intensity * 0.65} listening={false} />
-                      {/* Mid fireball - red */}
                       <Circle x={0} y={0} radius={size * 0.55 * (0.3 + p * 0.7)} fill="#cc220088" opacity={fadeOut * intensity * 0.45} listening={false} />
-                      {/* Smoke cloud that lingers */}
                       <Circle x={0} y={-size * p * 0.3} radius={size * (0.2 + p * 0.6)} fill="#44444488" opacity={p * intensity * 0.35} listening={false} />
-                      {/* Debris particles - 12 pieces flying outward with trails */}
                       {Array.from({ length: 12 }, (_, i) => {
                         const angle = (i * 30 + seededRandom(i) * 20) * Math.PI / 180;
                         const speed = 0.7 + seededRandom(i + 50) * 0.6;
@@ -541,7 +558,6 @@ const MapCanvas: React.FC = () => {
                         const colors = ['#ffcc00', '#ff8800', '#ff4400', '#ff2200'];
                         return (
                           <React.Fragment key={`exp-${i}`}>
-                            {/* Trail */}
                             <Line points={[dx * 0.3, dy * 0.3, dx, dy]} stroke={colors[i % 4]} strokeWidth={1} opacity={fadeOut * intensity * 0.4} lineCap="round" listening={false} />
                             <Circle x={dx} y={dy} radius={pSize} fill={colors[i % 4]} opacity={fadeOut * intensity * 0.8} listening={false} />
                           </React.Fragment>
@@ -551,7 +567,6 @@ const MapCanvas: React.FC = () => {
                   );
                 })()}
 
-                {/* SMOKE: volumetric rising puffs with turbulence */}
                 {hasSmoke && smokeEffect && (() => {
                   const p = smokeEffect.progress;
                   const intensity = smokeEffect.intensity;
@@ -572,24 +587,18 @@ const MapCanvas: React.FC = () => {
                       {puffs.map((puff, i) => {
                         const localP = Math.max(0, Math.min(1, (p - puff.delay) / (1 - puff.delay)));
                         if (localP <= 0) return null;
-                        // Multi-frequency turbulence
-                        const turbX = Math.sin(currentTime * 0.006 + i * 1.7) * 5 * localP
-                          + Math.sin(currentTime * 0.015 + i * 3.1) * 2 * localP;
+                        const turbX = Math.sin(currentTime * 0.006 + i * 1.7) * 5 * localP + Math.sin(currentTime * 0.015 + i * 3.1) * 2 * localP;
                         const turbY = Math.sin(currentTime * 0.004 + i * 2.3) * 2 * localP;
                         const riseY = puff.y - localP * 30;
                         const expandR = puff.r * (0.4 + localP * 1.0);
-                        // Fade: ramp in, then slowly fade out
                         const fadeIn = Math.min(1, localP * 4);
-                        const fadeOut = Math.max(0, 1 - (localP - 0.6) / 0.4);
-                        const fadeOpacity = fadeIn * fadeOut * intensity * 0.4;
+                        const fadeFOut = Math.max(0, 1 - (localP - 0.6) / 0.4);
+                        const fadeOpacity = fadeIn * fadeFOut * intensity * 0.4;
                         const g = puff.shade;
                         return (
                           <React.Fragment key={`smoke-${i}`}>
-                            {/* Soft shadow underneath */}
                             <Circle x={puff.x + turbX + 1} y={riseY + turbY - size / 2 + 2} radius={expandR * 1.1} fill={`rgb(${g - 30},${g - 30},${g - 30})`} opacity={fadeOpacity * 0.3} listening={false} />
-                            {/* Main puff */}
                             <Circle x={puff.x + turbX} y={riseY + turbY - size / 2} radius={expandR} fill={`rgb(${g},${g},${g})`} opacity={fadeOpacity} listening={false} />
-                            {/* Inner lighter highlight */}
                             <Circle x={puff.x + turbX - expandR * 0.2} y={riseY + turbY - size / 2 - expandR * 0.15} radius={expandR * 0.5} fill={`rgb(${g + 25},${g + 25},${g + 25})`} opacity={fadeOpacity * 0.5} listening={false} />
                           </React.Fragment>
                         );
@@ -598,11 +607,9 @@ const MapCanvas: React.FC = () => {
                   );
                 })()}
 
-                {/* FIRE: layered flames with natural flickering */}
                 {hasFire && fireEffect && (() => {
                   const intensity = fireEffect.intensity;
                   const baseY = -size / 2;
-                  // Flame layers: multiple teardrop-shaped flames
                   const flames = [
                     { x: 0, y: baseY, h: 22, w: 8, speed: 0.02, color: '#ff2200', delay: 0 },
                     { x: -5, y: baseY + 2, h: 18, w: 6, speed: 0.025, color: '#ff4400', delay: 0.1 },
@@ -615,11 +622,8 @@ const MapCanvas: React.FC = () => {
                   ];
                   return (
                     <>
-                      {/* Warm glow underneath */}
                       <Circle x={0} y={baseY + 4} radius={size * 0.45} fill="#ff440011" opacity={intensity * 0.5} listening={false} />
-                      {/* Base glow */}
                       <Circle x={0} y={baseY} radius={size * 0.3} fill="#ff660022" opacity={intensity * 0.4} listening={false} />
-                      {/* Flame bodies */}
                       {flames.map((f, i) => {
                         const flicker = Math.sin(currentTime * f.speed + i * 2.7) * 3;
                         const yFlicker = Math.sin(currentTime * f.speed * 1.4 + i * 1.3) * 2.5;
@@ -632,18 +636,14 @@ const MapCanvas: React.FC = () => {
                         const flickerOpacity = 0.5 + Math.sin(currentTime * f.speed * 1.6 + i * 0.9) * 0.15;
                         return (
                           <React.Fragment key={`fire-${i}`}>
-                            {/* Outer glow for this flame */}
                             <Circle x={fx} y={fy - fh * 0.3} radius={fw * 1.5} fill={f.color + '22'} opacity={intensity * flickerOpacity * 0.3} listening={false} />
-                            {/* Main flame body - elongated upward */}
                             <Circle x={fx} y={fy - fh * 0.5} radius={fw} fill={f.color} opacity={intensity * flickerOpacity} listening={false} />
                             <Circle x={fx} y={fy - fh * 0.3} radius={fw * 0.8} fill={f.color} opacity={intensity * flickerOpacity * 0.9} listening={false} />
                             <Circle x={fx} y={fy} radius={fw * 0.6} fill={f.color} opacity={intensity * flickerOpacity * 0.7} listening={false} />
                           </React.Fragment>
                         );
                       })}
-                      {/* Hot core at base */}
                       <Circle x={0} y={baseY + 2} radius={4} fill="#fff8e0" opacity={intensity * 0.6} listening={false} />
-                      {/* Embers rising */}
                       {[0, 1, 2, 3].map((i) => {
                         const emberY = baseY - 20 - Math.sin(currentTime * 0.01 + i * 2) * 15;
                         const emberX = Math.sin(currentTime * 0.008 + i * 3) * 8;
@@ -659,6 +659,52 @@ const MapCanvas: React.FC = () => {
           })}
         </Layer>
       </Stage>
+
+      {/* HTML context menu for right-click on objects */}
+      {contextMenu && (
+        <div
+          className="absolute z-50 bg-panel border border-border rounded shadow-lg py-1 min-w-[160px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {Object.values(groups).length > 0 && (
+            <>
+              <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground">Add to Group</div>
+              {Object.values(groups).map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => { addToGroup(g.id, [contextMenu.objectId]); setContextMenu(null); }}
+                  className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                >
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
+                  {g.name}
+                </button>
+              ))}
+              <div className="h-px bg-border my-1" />
+            </>
+          )}
+          <button
+            onClick={() => { setSelectedIds([contextMenu.objectId]); setContextMenu(null); }}
+            className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors"
+          >
+            Select
+          </button>
+          {getGroupForObject(contextMenu.objectId) && (
+            <button
+              onClick={() => {
+                const g = getGroupForObject(contextMenu.objectId);
+                if (g) {
+                  useEditorStore.getState().removeFromGroup(g.id, [contextMenu.objectId]);
+                }
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors"
+            >
+              Remove from Group
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
