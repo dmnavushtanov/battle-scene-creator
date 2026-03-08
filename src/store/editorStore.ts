@@ -26,6 +26,12 @@ function createDefaultProject(): ProjectData {
   };
 }
 
+export interface CustomIcon {
+  id: string;
+  label: string;
+  dataUrl: string;
+}
+
 export interface EditorState {
   project: ProjectData;
   activeSceneId: string;
@@ -43,6 +49,8 @@ export interface EditorState {
   stagePosition: { x: number; y: number };
   // Derived transforms during playback/scrub (not persisted)
   derivedTransforms: Record<string, ObjectSnapshot>;
+  // Custom icons library
+  customIcons: CustomIcon[];
 
   // Scene helpers
   getActiveScene: () => Scene;
