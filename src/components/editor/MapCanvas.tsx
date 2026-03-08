@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line } from 'react-konva';
+import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -244,9 +244,9 @@ const MapCanvas: React.FC = () => {
 
   const customIconImages = useCustomIconCache(customIconSources);
 
-  const drawings = objectOrder
+  const arrows = objectOrder
     .map((id) => objectsById[id])
-    .filter((o) => o && o.type === 'drawing');
+    .filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
 
   return (
     <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative">
@@ -288,13 +288,38 @@ const MapCanvas: React.FC = () => {
         </Layer>
 
         <Layer>
-          {drawings.map((d) => {
-            if (d.points && d.points.length >= 4) {
-              return (
-                <Line key={d.id} points={d.points} stroke={d.color || '#d4a843'} strokeWidth={2} x={d.x} y={d.y} />
-              );
-            }
-            return null;
+          {arrows.map((d) => {
+            if (!d.points || d.points.length < 4) return null;
+            const color = d.color || '#d4a843';
+            return (
+              <Group key={d.id} x={d.x} y={d.y}>
+                {/* Outer glow / outline for readability on any background */}
+                <Arrow
+                  points={d.points}
+                  stroke="#000000"
+                  strokeWidth={5}
+                  opacity={0.4}
+                  pointerLength={14}
+                  pointerWidth={12}
+                  lineCap="round"
+                  lineJoin="round"
+                  listening={false}
+                />
+                {/* Main tactical arrow */}
+                <Arrow
+                  points={d.points}
+                  stroke={color}
+                  strokeWidth={3}
+                  dash={[10, 6]}
+                  pointerLength={12}
+                  pointerWidth={10}
+                  fill={color}
+                  lineCap="round"
+                  lineJoin="round"
+                  opacity={0.9}
+                />
+              </Group>
+            );
           })}
         </Layer>
 

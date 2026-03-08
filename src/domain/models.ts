@@ -1,5 +1,5 @@
 export type UnitType = 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' | 'air' | 'hq' | 'supply';
-export type DrawToolType = 'select' | 'arrow' | 'line' | 'freehand' | 'rectangle' | 'circle';
+export type DrawToolType = 'select' | 'arrow';
 export type LayerType = 'background' | 'drawings' | 'units' | 'effects';
 
 export interface MapObject {
