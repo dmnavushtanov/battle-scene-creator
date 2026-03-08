@@ -148,7 +148,7 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
-  // Middle-button panning only
+  // Middle-button panning + left-button arrow drawing
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
       e.evt.preventDefault();
@@ -160,24 +160,71 @@ const MapCanvas: React.FC = () => {
         stage.container().style.cursor = 'grabbing';
       }
     }
+    // Arrow drawing on left-click when arrow tool is active
+    if (e.evt.button === 0 && activeTool === 'arrow') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const stageX = (pointer.x - stagePosition.x) / stageScale;
+      const stageY = (pointer.y - stagePosition.y) / stageScale;
+      isDrawingArrow.current = true;
+      setDrawingArrow({ x1: stageX, y1: stageY, x2: stageX, y2: stageY });
+    }
   };
 
   const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!isPanning.current || !panStart.current) return;
-    const stage = stageRef.current;
-    if (!stage) return;
-    const pointer = stage.getPointerPosition()!;
-    const dx = pointer.x - panStart.current.x;
-    const dy = pointer.y - panStart.current.y;
-    setStagePosition({ x: panStart.current.stageX + dx, y: panStart.current.stageY + dy });
+    if (isPanning.current && panStart.current) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const dx = pointer.x - panStart.current.x;
+      const dy = pointer.y - panStart.current.y;
+      setStagePosition({ x: panStart.current.stageX + dx, y: panStart.current.stageY + dy });
+    }
+    // Arrow drawing preview
+    if (isDrawingArrow.current && drawingArrow) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const stageX = (pointer.x - stagePosition.x) / stageScale;
+      const stageY = (pointer.y - stagePosition.y) / stageScale;
+      setDrawingArrow({ ...drawingArrow, x2: stageX, y2: stageY });
+    }
   };
 
-  const handleStageMouseUp = () => {
+  const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isPanning.current) {
       isPanning.current = false;
       panStart.current = null;
       const stage = stageRef.current;
       if (stage) stage.container().style.cursor = 'default';
+    }
+    // Finalize arrow
+    if (isDrawingArrow.current && drawingArrow) {
+      isDrawingArrow.current = false;
+      const dx = drawingArrow.x2 - drawingArrow.x1;
+      const dy = drawingArrow.y2 - drawingArrow.y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 10) {
+        const obj: MapObject = {
+          id: uuid(),
+          type: 'drawing',
+          drawTool: 'arrow',
+          x: 0,
+          y: 0,
+          points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
+          rotation: 0,
+          scaleX: 1,
+          scaleY: 1,
+          layer: 'drawings',
+          visible: true,
+          locked: false,
+          color: '#d4a843',
+        };
+        addObject(obj);
+        setSelectedIds([obj.id]);
+      }
+      setDrawingArrow(null);
     }
   };
 
