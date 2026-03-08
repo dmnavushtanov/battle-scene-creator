@@ -152,7 +152,11 @@ const MapCanvas: React.FC = () => {
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const target = e.target;
     const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect' || target.attrs.id?.startsWith('grid-');
-    if (isEmptySpace && activeTool === 'select' && !isRecording) {
+    const isMiddleButton = e.evt.button === 1;
+
+    // Pan with middle mouse button from anywhere, or left-click on empty space
+    if (isMiddleButton || (isEmptySpace && activeTool === 'select' && !isRecording)) {
+      if (isMiddleButton) e.evt.preventDefault();
       isPanning.current = true;
       panDidMove.current = false;
       const stage = stageRef.current;
