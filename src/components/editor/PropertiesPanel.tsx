@@ -95,9 +95,6 @@ const PropertiesPanel: React.FC = () => {
           <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-primary/20 text-primary rounded">
             {single.unitType || single.type}
           </span>
-          <span className="text-[8px] font-mono text-muted-foreground">
-            {singleKeyframeCount} kf
-          </span>
         </div>
 
         {/* Position */}
@@ -174,14 +171,6 @@ const PropertiesPanel: React.FC = () => {
             Locked
           </label>
         </div>
-
-        {/* Add Keyframe */}
-        <button
-          onClick={() => addKeyframeAtTime(single.id, currentTime)}
-          className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-primary/20 text-primary border border-primary/30 rounded hover:bg-primary/30 transition-colors"
-        >
-          + Add Keyframe at Playhead
-        </button>
 
         {/* Clear keyframes for this object */}
         {singleKeyframeCount > 0 && (

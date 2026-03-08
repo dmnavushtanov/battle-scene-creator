@@ -237,30 +237,16 @@ const MapCanvas: React.FC = () => {
         scaleY={stageScale}
         x={stagePosition.x}
         y={stagePosition.y}
-        draggable={false}
+        draggable={activeTool === 'select' && !isRecording}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
+        onDragEnd={(e) => {
+          setStagePosition({ x: e.target.x(), y: e.target.y() });
+        }}
       >
         <Layer>
-          <Rect
-            id="bg-rect"
-            x={0}
-            y={0}
-            width={1920}
-            height={1080}
-            fill="#0d1117"
-            draggable={activeTool === 'select' && !isRecording}
-            onDragMove={(e) => {
-              // Pan the stage by moving the stage position
-              e.target.x(0);
-              e.target.y(0);
-              setStagePosition({
-                x: stagePosition.x + e.evt.movementX,
-                y: stagePosition.y + e.evt.movementY,
-              });
-            }}
-          />
+          <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" listening={false} />
           {bgImage && <KImage image={bgImage} x={0} y={0} width={1920} height={1080} />}
           {Array.from({ length: 97 }, (_, i) => (
             <Line key={`vg-${i}`} points={[i * 20, 0, i * 20, 1080]} stroke="#1a2332" strokeWidth={0.5} />
