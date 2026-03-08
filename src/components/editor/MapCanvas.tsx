@@ -760,7 +760,7 @@ const MapCanvas: React.FC = () => {
                             onClick={() => handleAddUnitAtCursor(u.type)}
                             className="w-full text-left px-3 py-1 text-[9px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                           >
-                            <span>{UNIT_SYMBOLS[u.type]}</span> {u.label}
+                            <img src={UNIT_ICON_URLS[u.type]} alt={u.label} className="w-4 h-4 object-contain" /> {u.label}
                           </button>
                         ))}
                       </div>
