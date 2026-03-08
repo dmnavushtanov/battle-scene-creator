@@ -1,32 +1,21 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
-import type { Keyframe } from '@/types/editor';
-
-// Linear interpolation between two keyframes
-function lerpKeyframes(a: Keyframe, b: Keyframe, t: number) {
-  const ratio = (t - a.time) / (b.time - a.time);
-  return {
-    x: a.x + (b.x - a.x) * ratio,
-    y: a.y + (b.y - a.y) * ratio,
-    rotation: a.rotation + (b.rotation - a.rotation) * ratio,
-    scaleX: a.scaleX + (b.scaleX - a.scaleX) * ratio,
-    scaleY: a.scaleY + (b.scaleY - a.scaleY) * ratio,
-  };
-}
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
   const isPlaying = useEditorStore((s) => s.isPlaying);
-  const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
-  const scenes = useEditorStore((s) => s.project.scenes);
-  const objects = useEditorStore((s) => s.project.objects);
-  const keyframes = useEditorStore((s) => s.project.keyframes);
-  const selectedIds = useEditorStore((s) => s.selectedIds);
-  const updateObject = useEditorStore((s) => s.updateObject);
+  const seekTo = useEditorStore((s) => s.seekTo);
+  const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
 
-  const totalDuration = scenes.reduce((sum, s) => sum + s.duration, 0);
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
+  const selectedIds = useEditorStore((s) => s.selectedIds);
+
+  const totalDuration = activeScene.duration;
   const timelineWidth = 800;
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
@@ -42,74 +31,41 @@ const TimelinePanel: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = Math.max(0, Math.min(totalDuration, x / pxPerMs));
-    setCurrentTime(time);
+    seekTo(time);
   };
 
-  // Interpolate object positions based on keyframes at current time
-  const interpolateObjects = (time: number) => {
-    const units = objects.filter((o) => o.type === 'unit');
-    units.forEach((unit) => {
-      const unitKfs = keyframes
-        .filter((k) => k.objectId === unit.id)
-        .sort((a, b) => a.time - b.time);
-      if (unitKfs.length === 0) return;
-
-      // Before first keyframe: snap to first
-      if (time <= unitKfs[0].time) {
-        updateObject(unit.id, {
-          x: unitKfs[0].x,
-          y: unitKfs[0].y,
-          rotation: unitKfs[0].rotation,
-          scaleX: unitKfs[0].scaleX,
-          scaleY: unitKfs[0].scaleY,
-        });
-        return;
-      }
-
-      // After last keyframe: snap to last
-      if (time >= unitKfs[unitKfs.length - 1].time) {
-        const last = unitKfs[unitKfs.length - 1];
-        updateObject(unit.id, {
-          x: last.x,
-          y: last.y,
-          rotation: last.rotation,
-          scaleX: last.scaleX,
-          scaleY: last.scaleY,
-        });
-        return;
-      }
-
-      // Find surrounding keyframes and interpolate
-      for (let i = 0; i < unitKfs.length - 1; i++) {
-        if (time >= unitKfs[i].time && time <= unitKfs[i + 1].time) {
-          const interp = lerpKeyframes(unitKfs[i], unitKfs[i + 1], time);
-          updateObject(unit.id, interp);
-          return;
-        }
-      }
-    });
-  };
+  // Count total keyframes
+  const totalKeyframes = Object.values(activeScene.keyframesByObjectId).reduce(
+    (sum, kfs) => sum + kfs.length,
+    0
+  );
 
   // Playback loop
   const playRef = React.useRef<number | null>(null);
-  const lastTimeRef = React.useRef<number>(0);
+  const playStartRef = React.useRef<{ wallTime: number; sceneTime: number }>({ wallTime: 0, sceneTime: 0 });
 
   React.useEffect(() => {
     if (isPlaying) {
-      lastTimeRef.current = performance.now();
+      playStartRef.current = { wallTime: performance.now(), sceneTime: currentTime };
+
       const tick = (now: number) => {
-        const delta = now - lastTimeRef.current;
-        lastTimeRef.current = now;
-        const newTime = currentTime + delta;
+        const elapsed = now - playStartRef.current.wallTime;
+        const newTime = playStartRef.current.sceneTime + elapsed;
+
         if (newTime >= totalDuration) {
-          setCurrentTime(0);
+          seekTo(0);
           setIsPlaying(false);
           return;
         }
-        setCurrentTime(newTime);
-        interpolateObjects(newTime);
+
+        // Update currentTime without re-triggering this effect
+        useEditorStore.setState({ currentTime: newTime });
+        computeDerivedTransforms(newTime);
         playRef.current = requestAnimationFrame(tick);
       };
+
+      // Compute initial frame
+      computeDerivedTransforms(currentTime);
       playRef.current = requestAnimationFrame(tick);
     }
     return () => {
@@ -117,14 +73,16 @@ const TimelinePanel: React.FC = () => {
     };
   }, [isPlaying]);
 
-  const units = objects.filter((o) => o.type === 'unit');
+  const units = activeScene.objectOrder
+    .map((id) => activeScene.objectsById[id])
+    .filter((o) => o && o.type === 'unit');
 
   return (
-    <div className="bg-timeline border-t border-border flex flex-col">
+    <div className="bg-timeline border-t border-border flex flex-col h-full">
       {/* Controls bar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <button
-          onClick={() => setCurrentTime(0)}
+          onClick={() => seekTo(0)}
           className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
         >
           <SkipBack size={14} />
@@ -136,7 +94,7 @@ const TimelinePanel: React.FC = () => {
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
         </button>
         <button
-          onClick={() => setCurrentTime(totalDuration)}
+          onClick={() => seekTo(totalDuration)}
           className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
         >
           <SkipForward size={14} />
@@ -152,7 +110,7 @@ const TimelinePanel: React.FC = () => {
         <div className="flex-1" />
 
         <span className="text-[10px] font-mono text-muted-foreground">
-          {keyframes.length} keyframes
+          {totalKeyframes} keyframes
         </span>
       </div>
 
@@ -182,7 +140,7 @@ const TimelinePanel: React.FC = () => {
 
         {/* Unit tracks */}
         {units.slice(0, 10).map((unit) => {
-          const unitKfs = keyframes.filter((k) => k.objectId === unit.id);
+          const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
 
           return (
@@ -194,11 +152,11 @@ const TimelinePanel: React.FC = () => {
               style={{ width: timelineWidth }}
             >
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase">
-                {unit.unitType}
+                {unit.unitType || unit.label}
               </span>
-              {unitKfs.map((kf) => (
+              {unitKfs.map((kf, idx) => (
                 <div
-                  key={kf.id}
+                  key={idx}
                   className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground"
                   style={{ left: kf.time * pxPerMs - 6 }}
                   title={`t=${formatTime(kf.time)}`}

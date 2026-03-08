@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
-import type { UnitType, MapObject } from '@/types/editor';
+import type { UnitType, MapObject } from '@/domain/models';
 
 const AssetLibrary: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);

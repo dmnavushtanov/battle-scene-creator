@@ -1,5 +1,5 @@
 import React from 'react';
-import type { UnitType } from '@/types/editor';
+import type { UnitType } from '@/domain/models';
 
 const UNIT_SYMBOLS: Record<UnitType, string> = {
   infantry: '⚔',
@@ -18,7 +18,6 @@ interface UnitIconProps {
 }
 
 const UnitIcon: React.FC<UnitIconProps> = ({ unitType, size = 40 }) => {
-  const color = 'hsl(var(--primary))';
   const symbol = UNIT_SYMBOLS[unitType];
 
   return (
