@@ -114,6 +114,8 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 | Multi-select | Shift + click |
 | Rectangle select | Left-click drag on empty canvas |
 | Deselect | Click empty canvas / Escape |
+| Delete selected | Delete / Backspace (with confirmation) |
+| Play / Pause | Space bar |
 | Copy | Ctrl+C |
 | Paste | Ctrl+V |
 | Right-click unit | Context menu |
