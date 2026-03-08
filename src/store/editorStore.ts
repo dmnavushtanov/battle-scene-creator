@@ -59,6 +59,7 @@ export interface EditorState {
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
   selectedKeyframeIndex: { objectId: string; index: number } | null;
+  selectedEffectId: { objectId: string; effectId: string } | null;
 
   // Scene helpers
   getActiveScene: () => Scene;
