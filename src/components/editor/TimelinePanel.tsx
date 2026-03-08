@@ -576,14 +576,25 @@ const TimelinePanel: React.FC = () => {
                     {unitEffects.length}fx
                   </button>
                 )}
-                {/* Small colored dots as quick indicators */}
-                {unitEffects.map((eff, effIdx) => {
+                {/* Effect mini-bars on unit track */}
+                {unitEffects.map((eff) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                  const barLeft = eff.startTime * pxPerMs;
+                  const barWidth = Math.max(8, eff.duration * pxPerMs);
+                  const selectedEffectId = useEditorStore.getState().selectedEffectId;
+                  const isEffSel = selectedEffectId?.objectId === unit.id && selectedEffectId?.effectId === eff.id;
                   return (
                     <div
                       key={eff.id}
-                      className="absolute bottom-0.5 w-2 h-2 rounded-full pointer-events-none"
-                      style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }}
+                      className={`absolute bottom-0 h-[5px] rounded-sm cursor-pointer hover:h-[7px] transition-all ${isEffSel ? 'ring-1 ring-foreground/60' : ''}`}
+                      style={{ left: barLeft, width: barWidth, backgroundColor: effColor + (isEffSel ? 'cc' : '88') }}
+                      title={`${eff.type} · ${(eff.duration / 1000).toFixed(1)}s`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIds([unit.id]);
+                        useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
+                        setExpandedUnitEffects(prev => ({ ...prev, [unit.id]: true }));
+                      }}
                     />
                   );
                 })}
