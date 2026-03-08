@@ -175,7 +175,7 @@ const TimelinePanel: React.FC = () => {
               style={{ width: timelineWidth }}
             >
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase">
-                {unit.unitType || unit.label}
+                {unit.label || unit.unitType}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
               </span>
               {unitKfs.map((kf, idx) => (
                 <div

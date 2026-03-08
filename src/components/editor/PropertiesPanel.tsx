@@ -136,25 +136,21 @@ const PropertiesPanel: React.FC = () => {
           />
         </div>
 
-        {/* Scale */}
+        {/* Scale (uniform) */}
         <div>
           <label className="text-[9px] font-mono uppercase text-muted-foreground">Scale</label>
-          <div className="flex gap-2 mt-1">
-            <input
-              type="number"
-              step={0.1}
-              value={single.scaleX}
-              onChange={(e) => updateObject(single.id, { scaleX: Number(e.target.value) })}
-              className="flex-1 bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground"
-            />
-            <input
-              type="number"
-              step={0.1}
-              value={single.scaleY}
-              onChange={(e) => updateObject(single.id, { scaleY: Number(e.target.value) })}
-              className="flex-1 bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground"
-            />
-          </div>
+          <input
+            type="number"
+            step={0.1}
+            min={0.1}
+            max={10}
+            value={single.scaleX}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              updateObject(single.id, { scaleX: v, scaleY: v });
+            }}
+            className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1"
+          />
         </div>
 
         {/* Visibility / Lock */}
