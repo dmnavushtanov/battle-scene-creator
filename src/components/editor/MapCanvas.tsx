@@ -4,28 +4,32 @@ import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
 import type { MapObject, UnitType } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
-import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
+import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
 import { CrackEffect, BloodEffect, ExplosionEffect, SmokeEffect, FireEffect, GunshotEffect } from './effects';
 import { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
+import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
 
-// --- Custom icon image cache ---
-const customIconCache = new Map<string, HTMLImageElement>();
+// --- Image cache for custom icons AND built-in unit icons ---
+const imageCache = new Map<string, HTMLImageElement>();
 
-function useCustomIconCache(sources: string[]) {
+function useImageCache(sources: string[]) {
   const [, forceRerender] = useState(0);
   useEffect(() => {
     let cancelled = false;
     sources.forEach((src) => {
-      if (!src || customIconCache.has(src)) return;
+      if (!src || imageCache.has(src)) return;
       const image = new window.Image();
       image.src = src;
-      image.onload = () => { customIconCache.set(src, image); if (!cancelled) forceRerender((v) => v + 1); };
+      image.onload = () => {
+        imageCache.set(src, image);
+        if (!cancelled) forceRerender((v) => v + 1);
+      };
     });
     return () => { cancelled = true; };
   }, [sources]);
-  return customIconCache;
+  return imageCache;
 }
 
 const MapCanvas: React.FC = () => {
