@@ -101,6 +101,10 @@ export interface EditorState {
   // Playback engine
   computeDerivedTransforms: (time: number) => void;
 
+  // Custom icons
+  addCustomIcon: (icon: CustomIcon) => void;
+  removeCustomIcon: (id: string) => void;
+
   // Import/Export
   exportProject: () => string;
   importProject: (json: string) => void;
