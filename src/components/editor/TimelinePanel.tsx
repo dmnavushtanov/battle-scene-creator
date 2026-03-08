@@ -353,6 +353,7 @@ const TimelinePanel: React.FC = () => {
         </DropdownMenu>
 
         {/* Lock timeframe toggle */}
+        <Tooltip><TooltipTrigger asChild>
         <button
           onClick={() => setTimeframeLocked(!timeframeLocked)}
           className={`p-1.5 rounded transition-colors flex items-center gap-1 text-[9px] font-mono uppercase border ${
@@ -360,23 +361,29 @@ const TimelinePanel: React.FC = () => {
               ? 'bg-primary/20 text-primary border-primary/50'
               : 'text-muted-foreground hover:text-foreground border-border'
           }`}
-          title={timeframeLocked ? 'Unlock timeframe' : 'Lock timeframe'}
         >
           {timeframeLocked ? <Lock size={10} /> : <Unlock size={10} />}
           {timeframeLocked ? 'Locked' : 'Lock'}
         </button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">{timeframeLocked ? 'Unlock ruler — allows scrolling' : 'Lock ruler to top when scrolling'}</p></TooltipContent></Tooltip>
 
         {/* Zoom controls */}
         <div className="flex items-center gap-1 border border-border rounded px-1 ml-1">
-          <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
+          <Tooltip><TooltipTrigger asChild>
+          <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
             <ZoomOut size={12} />
           </button>
+          </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Zoom timeline out</p></TooltipContent></Tooltip>
           <span className="text-[9px] font-mono text-muted-foreground min-w-[32px] text-center">{Math.round(timelineZoom * 100)}%</span>
-          <button onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom in">
+          <Tooltip><TooltipTrigger asChild>
+          <button onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
             <ZoomIn size={12} />
           </button>
+          </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Zoom timeline in</p></TooltipContent></Tooltip>
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground ml-2">{totalKeyframes} kf</span>
+        <Tooltip><TooltipTrigger asChild>
+        <span className="text-[10px] font-mono text-muted-foreground ml-2 cursor-default">{totalKeyframes} kf</span>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Total keyframes in this scene</p></TooltipContent></Tooltip>
       </div>
 
       {/* Timeline tracks */}
