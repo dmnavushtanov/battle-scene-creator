@@ -301,10 +301,16 @@ const MapCanvas: React.FC = () => {
       const dx = drawingArrow.x2 - drawingArrow.x1;
       const dy = drawingArrow.y2 - drawingArrow.y1;
       if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        const isAnimated = activeTool === 'animated_arrow';
+        const ct = useEditorStore.getState().currentTime;
+        const durMs = recordDurationSeconds * 1000;
         const obj: MapObject = {
-          id: uuid(), type: 'drawing', drawTool: 'arrow', x: 0, y: 0,
+          id: uuid(), type: isAnimated ? 'animated_arrow' : 'drawing',
+          drawTool: isAnimated ? undefined : 'arrow', x: 0, y: 0,
           points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
-          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false, color: '#d4a843',
+          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false,
+          color: '#d4a843',
+          ...(isAnimated ? { animStartTime: ct, animEndTime: ct + durMs } : {}),
         };
         addObject(obj);
         setSelectedIds([obj.id]);
