@@ -27,6 +27,7 @@ const PropertiesPanel: React.FC = () => {
   const addEffect = useEditorStore((s) => s.addEffect);
   const removeEffect = useEditorStore((s) => s.removeEffect);
   const clearEffects = useEditorStore((s) => s.clearEffects);
+  const updateEffect = useEditorStore((s) => s.updateEffect);
 
   if (selectedNarrationId) return <NarrationEditor />;
   if (selectedOverlayId) return <OverlayEditor />;
