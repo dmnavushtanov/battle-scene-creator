@@ -2,7 +2,6 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
-import type { MapObject } from '@/types/editor';
 
 const UNIT_LABELS: Record<string, string> = {
   infantry: 'INF',
@@ -23,19 +22,33 @@ const MapCanvas: React.FC = () => {
   const [dims, setDims] = React.useState({ width: 800, height: 600 });
   const [bgImage, setBgImage] = React.useState<HTMLImageElement | null>(null);
 
-  const objects = useEditorStore((s) => s.project.objects);
-  const backgroundImage = useEditorStore((s) => s.project.backgroundImage);
+  // Track drag delta for group movement
+  const lastDragPos = useRef<{ x: number; y: number } | null>(null);
+
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const activeTool = useEditorStore((s) => s.activeTool);
   const stageScale = useEditorStore((s) => s.stageScale);
   const stagePosition = useEditorStore((s) => s.stagePosition);
   const isRecording = useEditorStore((s) => s.isRecording);
+  const isPlaying = useEditorStore((s) => s.isPlaying);
+  const derivedTransforms = useEditorStore((s) => s.derivedTransforms);
 
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
   const updateObject = useEditorStore((s) => s.updateObject);
-  const recordPosition = useEditorStore((s) => s.recordPosition);
+  const onObjectDragStart = useEditorStore((s) => s.onObjectDragStart);
+  const onObjectDragMove = useEditorStore((s) => s.onObjectDragMove);
+  const onObjectDragEnd = useEditorStore((s) => s.onObjectDragEnd);
+  const onGroupDragMove = useEditorStore((s) => s.onGroupDragMove);
   const setStageScale = useEditorStore((s) => s.setStageScale);
   const setStagePosition = useEditorStore((s) => s.setStagePosition);
+
+  const objectsById = activeScene.objectsById;
+  const objectOrder = activeScene.objectOrder;
+  const backgroundImage = activeScene.backgroundImage;
 
   // Resize handler
   useEffect(() => {
@@ -94,24 +107,57 @@ const MapCanvas: React.FC = () => {
     }
   };
 
+  const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    lastDragPos.current = { x: e.target.x(), y: e.target.y() };
+    onObjectDragStart(id);
+  };
+
+  const handleDragMove = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    const x = e.target.x();
+    const y = e.target.y();
+    const prev = lastDragPos.current;
+
+    // Move the lead object
+    onObjectDragMove(id, x, y);
+
+    // Move other selected objects by the same delta (group move)
+    if (prev && selectedIds.includes(id) && selectedIds.length > 1) {
+      const dx = x - prev.x;
+      const dy = y - prev.y;
+      onGroupDragMove(id, dx, dy);
+    }
+
+    lastDragPos.current = { x, y };
+  };
+
   const handleDragEnd = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
     const x = e.target.x();
     const y = e.target.y();
-    if (isRecording) {
-      recordPosition(id, x, y);
-    } else {
-      updateObject(id, { x, y });
-    }
+    onObjectDragEnd(id, x, y);
+    lastDragPos.current = null;
   };
 
-  const units = objects.filter((o) => o.type === 'unit');
-  const drawings = objects.filter((o) => o.type === 'drawing');
+  // During playback, use derivedTransforms; otherwise use object data directly
+  const getObjectTransform = (id: string) => {
+    if (isPlaying && derivedTransforms[id]) {
+      return derivedTransforms[id];
+    }
+    return null; // use object's own position
+  };
+
+  const units = objectOrder
+    .map((id) => objectsById[id])
+    .filter((o) => o && o.type === 'unit');
+
+  const drawings = objectOrder
+    .map((id) => objectsById[id])
+    .filter((o) => o && o.type === 'drawing');
 
   return (
     <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative">
       {/* Coordinates overlay */}
       <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-panel/90 border border-border rounded text-[10px] font-mono text-muted-foreground">
-        {Math.round(stageScale * 100)}% | {objects.length} objects
+        {Math.round(stageScale * 100)}% | {objectOrder.length} objects
       </div>
 
       {/* Recording indicator */}
@@ -164,17 +210,27 @@ const MapCanvas: React.FC = () => {
           {units.map((unit) => {
             const isSelected = selectedIds.includes(unit.id);
             const size = unit.width || 50;
+            const derived = getObjectTransform(unit.id);
+            const ux = derived ? derived.x : unit.x;
+            const uy = derived ? derived.y : unit.y;
+            const urot = derived ? derived.rotation : unit.rotation;
+            const usx = derived ? derived.scaleX : unit.scaleX;
+            const usy = derived ? derived.scaleY : unit.scaleY;
+            const uvis = derived ? derived.visible : unit.visible;
+
+            if (!uvis) return null;
 
             return (
               <Group
                 key={unit.id}
-                x={unit.x}
-                y={unit.y}
-                rotation={unit.rotation}
-                scaleX={unit.scaleX}
-                scaleY={unit.scaleY}
-                draggable={(activeTool === 'select' || isRecording) && !unit.locked}
+                x={ux}
+                y={uy}
+                rotation={urot}
+                scaleX={usx}
+                scaleY={usy}
+                draggable={!isPlaying && (activeTool === 'select' || isRecording) && !unit.locked}
                 onClick={(e) => {
+                  if (isPlaying) return;
                   e.cancelBubble = true;
                   if (e.evt.shiftKey) {
                     setSelectedIds(
@@ -186,6 +242,8 @@ const MapCanvas: React.FC = () => {
                     setSelectedIds([unit.id]);
                   }
                 }}
+                onDragStart={(e) => handleDragStart(unit.id, e)}
+                onDragMove={(e) => handleDragMove(unit.id, e)}
                 onDragEnd={(e) => handleDragEnd(unit.id, e)}
               >
                 {/* Selection ring */}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import type { DrawToolType } from '@/types/editor';
+import type { DrawToolType } from '@/domain/models';
 import {
   MousePointer2,
   MoveRight,
@@ -35,6 +35,8 @@ const Toolbar: React.FC = () => {
   const isRecording = useEditorStore((s) => s.isRecording);
   const startRecording = useEditorStore((s) => s.startRecording);
   const stopRecording = useEditorStore((s) => s.stopRecording);
+  const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
+  const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -89,7 +91,7 @@ const Toolbar: React.FC = () => {
         ))}
       </div>
 
-      {/* Record button */}
+      {/* Record button + duration */}
       <button
         onClick={handleToggleRecording}
         title={isRecording ? 'Stop Recording' : 'Record Movement'}
@@ -102,6 +104,22 @@ const Toolbar: React.FC = () => {
         {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
         {isRecording ? 'Stop' : 'Record'}
       </button>
+
+      {!isRecording && (
+        <div className="flex items-center gap-1 ml-1">
+          <input
+            type="number"
+            min={0.5}
+            max={30}
+            step={0.5}
+            value={recordDurationSeconds}
+            onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
+            className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
+            title="Recording duration (seconds)"
+          />
+          <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+        </div>
+      )}
 
       <div className="border-r border-border h-5 mx-2" />
 

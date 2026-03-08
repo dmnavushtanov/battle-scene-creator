@@ -1,30 +1,28 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { v4 as uuid } from 'uuid';
 
 const PropertiesPanel: React.FC = () => {
   const selectedIds = useEditorStore((s) => s.selectedIds);
-  const objects = useEditorStore((s) => s.project.objects);
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
   const updateObject = useEditorStore((s) => s.updateObject);
   const currentTime = useEditorStore((s) => s.currentTime);
-  const addKeyframe = useEditorStore((s) => s.addKeyframe);
+  const addKeyframeAtTime = useEditorStore((s) => s.addKeyframeAtTime);
+  const clearKeyframes = useEditorStore((s) => s.clearKeyframes);
+  const clearAllKeyframes = useEditorStore((s) => s.clearAllKeyframes);
+  const sceneDuration = activeScene.duration;
+  const setSceneDuration = useEditorStore((s) => s.setSceneDuration);
 
-  const selectedObjects = objects.filter((o) => selectedIds.includes(o.id));
+  const selectedObjects = selectedIds
+    .map((id) => activeScene.objectsById[id])
+    .filter(Boolean);
   const single = selectedObjects.length === 1 ? selectedObjects[0] : null;
 
-  const handleAddKeyframe = () => {
-    if (!single) return;
-    addKeyframe({
-      id: uuid(),
-      objectId: single.id,
-      time: currentTime,
-      x: single.x,
-      y: single.y,
-      rotation: single.rotation,
-      scaleX: single.scaleX,
-      scaleY: single.scaleY,
-    });
-  };
+  const singleKeyframeCount = single
+    ? (activeScene.keyframesByObjectId[single.id] || []).length
+    : 0;
 
   if (selectedObjects.length === 0) {
     return (
@@ -33,6 +31,29 @@ const PropertiesPanel: React.FC = () => {
           <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-primary amber-glow">
             Properties
           </h2>
+        </div>
+        <div className="px-3 py-3 space-y-3">
+          {/* Scene duration */}
+          <div>
+            <label className="text-[9px] font-mono uppercase text-muted-foreground">Scene Duration (sec)</label>
+            <input
+              type="number"
+              min={1}
+              max={300}
+              step={1}
+              value={Math.round(sceneDuration / 1000)}
+              onChange={(e) => setSceneDuration(Number(e.target.value) * 1000)}
+              className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1"
+            />
+          </div>
+
+          {/* Clear all keyframes */}
+          <button
+            onClick={clearAllKeyframes}
+            className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors"
+          >
+            Clear All Keyframes
+          </button>
         </div>
         <div className="flex-1 flex items-center justify-center px-4">
           <p className="text-[10px] font-mono text-muted-foreground text-center">
@@ -73,6 +94,9 @@ const PropertiesPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-primary/20 text-primary rounded">
             {single.unitType || single.type}
+          </span>
+          <span className="text-[8px] font-mono text-muted-foreground">
+            {singleKeyframeCount} kf
           </span>
         </div>
 
@@ -157,11 +181,21 @@ const PropertiesPanel: React.FC = () => {
 
         {/* Add Keyframe */}
         <button
-          onClick={handleAddKeyframe}
+          onClick={() => addKeyframeAtTime(single.id, currentTime)}
           className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-primary/20 text-primary border border-primary/30 rounded hover:bg-primary/30 transition-colors"
         >
-          + Add Keyframe at Current Time
+          + Add Keyframe at Playhead
         </button>
+
+        {/* Clear keyframes for this object */}
+        {singleKeyframeCount > 0 && (
+          <button
+            onClick={() => clearKeyframes(single.id)}
+            className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors"
+          >
+            Clear Keyframes ({singleKeyframeCount})
+          </button>
+        )}
       </div>
     </div>
   );
