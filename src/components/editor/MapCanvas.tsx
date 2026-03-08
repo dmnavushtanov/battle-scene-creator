@@ -17,11 +17,11 @@ const UNIT_LABELS: Record<string, string> = {
 const UNIT_COLOR = '#d4a843';
 
 const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
-  explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥',
+  explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥', gunshot: '🔫',
 };
 
 const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
 };
 
 const customIconCache = new Map<string, HTMLImageElement>();

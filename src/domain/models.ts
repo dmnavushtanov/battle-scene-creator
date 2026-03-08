@@ -2,7 +2,7 @@ export type UnitType = 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' 
 export type DrawToolType = 'select' | 'arrow';
 export type LayerType = 'background' | 'drawings' | 'units' | 'effects';
 
-export type EffectType = 'explosion' | 'shake' | 'crack' | 'blood' | 'smoke' | 'fire';
+export type EffectType = 'explosion' | 'shake' | 'crack' | 'blood' | 'smoke' | 'fire' | 'gunshot';
 export type TextAnimation = 'fade' | 'typewriter' | 'slide-up' | 'none';
 export type OverlayTransition = 'fade' | 'slide' | 'none';
 
