@@ -42,6 +42,12 @@ const Toolbar: React.FC = () => {
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
+  const setSceneDuration = useEditorStore((s) => s.setSceneDuration);
+  const sceneDuration = activeScene.duration;
 
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState(0);
