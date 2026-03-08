@@ -326,6 +326,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     setSelectedKeyframeIndex: (sel) => set({ selectedKeyframeIndex: sel }),
+    setSelectedEffectId: (sel) => set({ selectedEffectId: sel }),
 
     // Effects CRUD
     addEffect: (objectId, effect) => {
