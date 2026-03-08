@@ -283,6 +283,7 @@ const MapCanvas: React.FC = () => {
         <Layer>
           {units.map((unit) => {
             const isSelected = selectedIds.includes(unit.id);
+            const isGroupSelected = isSelected && selectedIds.length > 1;
             const size = unit.width || 50;
             const derived = getObjectTransform(unit.id);
             const ux = derived ? derived.x : unit.x;
