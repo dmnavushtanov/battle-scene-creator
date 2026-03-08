@@ -308,13 +308,21 @@ const TimelinePanel: React.FC = () => {
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="bg-timeline border-t border-border flex flex-col h-full select-none">
       {/* Controls bar */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-20 ${timeframeLocked ? 'sticky top-0' : ''}`}>
+        <Tooltip><TooltipTrigger asChild>
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to start</p></TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
         <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
         </button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">{isPlaying ? 'Pause playback' : 'Play animation'}</p></TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+        <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to end</p></TooltipContent></Tooltip>
         <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
