@@ -62,6 +62,7 @@ const TimelinePanel: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = Math.max(0, Math.min(totalDuration, x / pxPerMs));
+    if (isPlaying) setIsPlaying(false);
     seekTo(time);
   };
 
