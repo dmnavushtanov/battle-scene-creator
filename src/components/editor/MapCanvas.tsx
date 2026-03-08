@@ -45,6 +45,8 @@ const MapCanvas: React.FC = () => {
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
   const isDrawingPath = useRef(false);
+  const [selectionRect, setSelectionRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const isMarqueeSelecting = useRef(false);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -225,6 +227,16 @@ const MapCanvas: React.FC = () => {
       isDrawingArrow.current = true;
       setDrawingArrow({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
     }
+    // Marquee selection: start on left-click on empty canvas in select mode
+    if (e.evt.button === 0 && activeTool === 'select' && !isPlaying) {
+      const target = e.target;
+      const stage = stageRef.current;
+      if ((target === stage || target.attrs?.id === 'bg-rect') && stage) {
+        const coords = getStageCoords(stage.getPointerPosition()!);
+        isMarqueeSelecting.current = true;
+        setSelectionRect({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
+      }
+    }
   };
 
   const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -239,6 +251,13 @@ const MapCanvas: React.FC = () => {
       if (!stage) return;
       const coords = getStageCoords(stage.getPointerPosition()!);
       setDrawingArrow({ ...drawingArrow, x2: coords.x, y2: coords.y });
+    }
+    // Marquee selection: update rect
+    if (isMarqueeSelecting.current && selectionRect) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      setSelectionRect({ ...selectionRect, x2: coords.x, y2: coords.y });
     }
   };
 
@@ -263,6 +282,29 @@ const MapCanvas: React.FC = () => {
         setSelectedIds([obj.id]);
       }
       setDrawingArrow(null);
+    }
+    // Marquee selection: finalize
+    if (isMarqueeSelecting.current && selectionRect) {
+      isMarqueeSelecting.current = false;
+      const minX = Math.min(selectionRect.x1, selectionRect.x2);
+      const maxX = Math.max(selectionRect.x1, selectionRect.x2);
+      const minY = Math.min(selectionRect.y1, selectionRect.y2);
+      const maxY = Math.max(selectionRect.y1, selectionRect.y2);
+      // Only select if dragged at least 5px
+      if (maxX - minX > 5 || maxY - minY > 5) {
+        const matchingIds = objectOrder.filter((id) => {
+          const obj = objectsById[id];
+          if (!obj || obj.type === 'drawing') return false;
+          const derived = getObjectTransform(id);
+          const ox = derived ? derived.x : obj.x;
+          const oy = derived ? derived.y : obj.y;
+          return ox >= minX && ox <= maxX && oy >= minY && oy <= maxY;
+        });
+        if (matchingIds.length > 0) {
+          setSelectedIds(matchingIds);
+        }
+      }
+      setSelectionRect(null);
     }
   };
 
@@ -688,6 +730,23 @@ const MapCanvas: React.FC = () => {
             );
           })}
         </Layer>
+
+        {/* Selection rectangle overlay */}
+        {selectionRect && (
+          <Layer>
+            <Rect
+              x={Math.min(selectionRect.x1, selectionRect.x2)}
+              y={Math.min(selectionRect.y1, selectionRect.y2)}
+              width={Math.abs(selectionRect.x2 - selectionRect.x1)}
+              height={Math.abs(selectionRect.y2 - selectionRect.y1)}
+              fill="rgba(212,168,67,0.1)"
+              stroke="#d4a843"
+              strokeWidth={1}
+              dash={[6, 3]}
+              listening={false}
+            />
+          </Layer>
+        )}
       </Stage>
 
       {/* Context menu */}

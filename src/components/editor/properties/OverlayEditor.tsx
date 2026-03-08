@@ -81,8 +81,11 @@ const OverlayEditor: React.FC = () => {
           </select>
         </div>
         <div>
-          <label className="text-[8px] font-mono text-muted-foreground">Dim Opacity</label>
-          <input type="number" value={overlay.dimOpacity} onChange={(e) => update({ dimOpacity: Number(e.target.value) })} min={0} max={1} step={0.1} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
+          <label className="text-[8px] font-mono text-muted-foreground">Dim Opacity — {Math.round(overlay.dimOpacity * 100)}%</label>
+          <input type="range" value={overlay.dimOpacity} onChange={(e) => update({ dimOpacity: Number(e.target.value) })} min={0} max={1} step={0.05} className="w-full mt-1 accent-primary" />
+          <div className="flex justify-between text-[7px] font-mono text-muted-foreground">
+            <span>Transparent</span><span>Opaque</span>
+          </div>
         </div>
         <button onClick={() => { removeOverlay(overlay.id); setSelectedOverlayId(null); }}
           className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors">

@@ -5,9 +5,10 @@ import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
 import NarrationOverlay from '@/components/editor/NarrationOverlay';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Upload, Swords } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Upload, Swords, Menu, FilePlus, FolderOpen } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useEditorStore } from '@/store/editorStore';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const StartMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: string) => void }> = ({ onNewProject, onLoadProject }) => {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -50,6 +51,38 @@ const StartMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: stri
   );
 };
 
+const FileMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: string) => void }> = ({ onNewProject, onLoadProject }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { onLoadProject(reader.result as string); };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <Menu size={16} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[160px]">
+          <DropdownMenuItem onClick={onNewProject} className="text-xs font-mono gap-2">
+            <FilePlus size={14} /> New Project
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => fileRef.current?.click()} className="text-xs font-mono gap-2">
+            <FolderOpen size={14} /> Load Project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input ref={fileRef} type="file" accept=".json" onChange={handleFile} className="hidden" />
+    </>
+  );
+};
+
 const Index: React.FC = () => {
   const [projectStarted, setProjectStarted] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -73,6 +106,7 @@ const Index: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-panel border-b border-border">
         <div className="flex items-center gap-3">
+          <FileMenu onNewProject={() => setProjectStarted(false)} onLoadProject={(json) => { importProject(json); }} />
           <h1 className="text-sm font-mono font-bold text-primary amber-glow tracking-wider uppercase">Battle Map</h1>
           <span className="text-[9px] font-mono px-2 py-0.5 bg-muted text-muted-foreground rounded uppercase">MVP</span>
         </div>
