@@ -8,6 +8,9 @@ const TimelinePanel: React.FC = () => {
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const seekTo = useEditorStore((s) => s.seekTo);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const isRecording = useEditorStore((s) => s.isRecording);
+  const recordingSession = useEditorStore((s) => s.recordingSession);
+  const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
