@@ -740,6 +740,7 @@ const TimelinePanel: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 };
 
