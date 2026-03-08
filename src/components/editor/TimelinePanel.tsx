@@ -58,12 +58,20 @@ const TimelinePanel: React.FC = () => {
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const time = Math.max(0, Math.min(totalDuration, x / pxPerMs));
+  const handleRulerScrub = (e: React.MouseEvent<HTMLDivElement>) => {
+    const ruler = e.currentTarget;
+    const rect = ruler.getBoundingClientRect();
+    const calcTime = (clientX: number) => Math.max(0, Math.min(totalDuration, (clientX - rect.left) / pxPerMs));
     if (isPlaying) setIsPlaying(false);
-    seekTo(time);
+    seekTo(calcTime(e.clientX));
+    const onMove = (me: MouseEvent) => {
+      const t = calcTime(me.clientX);
+      seekTo(t);
+      computeDerivedTransforms(t);
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const totalKeyframes = Object.values(activeScene.keyframesByObjectId).reduce(
