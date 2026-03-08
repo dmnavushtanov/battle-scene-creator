@@ -1,4 +1,5 @@
-import type { ProjectData } from '../models';
+import type { ProjectData, Scene, Keyframe } from '../models';
+import { v4 as uuid } from 'uuid';
 
 const CURRENT_VERSION = '1.0';
 
@@ -16,8 +17,6 @@ export function importProject(json: string): ProjectData {
 
   // Migrate from old flat format (pre-scene model)
   if (data.objects && !data.scenes) {
-    const { v4: uuid } = require('uuid') as { v4: () => string };
-    // Convert old format to scene-first
     const objectsById: Record<string, any> = {};
     const objectOrder: string[] = [];
     for (const obj of data.objects) {
@@ -25,7 +24,7 @@ export function importProject(json: string): ProjectData {
       objectOrder.push(obj.id);
     }
 
-    const keyframesByObjectId: Record<string, any[]> = {};
+    const keyframesByObjectId: Record<string, Keyframe[]> = {};
     if (data.keyframes) {
       for (const kf of data.keyframes) {
         if (!keyframesByObjectId[kf.objectId]) {
@@ -43,8 +42,8 @@ export function importProject(json: string): ProjectData {
       }
     }
 
-    const scene = {
-      id: crypto.randomUUID?.() || 'scene-1',
+    const scene: Scene = {
+      id: uuid(),
       name: 'Scene 1',
       duration: data.scenes?.[0]?.duration || 10000,
       backgroundImage: data.backgroundImage,
