@@ -15,6 +15,8 @@ import {
   Loader2,
   Route,
   Info,
+  TrendingUp,
+  Type,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -25,8 +27,10 @@ import {
 
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string; tip: string }[] = [
   { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select', tip: 'Select and move units on the canvas' },
-  { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow', tip: 'Draw arrows between points' },
+  { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow', tip: 'Draw static arrows between points' },
+  { tool: 'animated_arrow', icon: <TrendingUp size={16} />, label: 'Anim Arrow', tip: 'Draw an animated arrow that grows during playback over the record duration' },
   { tool: 'path', icon: <Route size={16} />, label: 'Path', tip: 'Draw movement paths — click waypoints, right-click to save, Esc to cancel' },
+  { tool: 'text', icon: <Type size={16} />, label: 'Text', tip: 'Click on canvas to place a text label (city names, dates, annotations)' },
 ];
 
 const Toolbar: React.FC = () => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
-import { EFFECT_COLORS } from '@/domain/constants';
+import { EFFECT_COLORS, FACTION_COLORS } from '@/domain/constants';
 import { Trash2 } from 'lucide-react';
 import { formatTime } from '@/domain/formatters';
 import KeyframeEditor from './properties/KeyframeEditor';
@@ -89,6 +89,81 @@ const PropertiesPanel: React.FC = () => {
           <label className="text-[9px] font-mono uppercase text-muted-foreground">Label</label>
           <input type="text" value={single.label || ''} onChange={(e) => updateObject(single.id, { label: e.target.value })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" placeholder="Unit label..." />
         </div>
+
+        {/* Faction Color */}
+        {(single.type === 'unit' || single.type === 'animated_arrow') && (
+          <div>
+            <label className="text-[9px] font-mono uppercase text-muted-foreground">Faction Color</label>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              {FACTION_COLORS.map((fc) => (
+                <button
+                  key={fc.color}
+                  onClick={() => updateObject(single.id, { factionColor: fc.color })}
+                  className={`w-5 h-5 rounded-full border-2 transition-all ${single.factionColor === fc.color ? 'border-foreground scale-110' : 'border-transparent hover:border-muted-foreground/50'}`}
+                  style={{ backgroundColor: fc.color }}
+                  title={fc.label}
+                />
+              ))}
+              <button
+                onClick={() => updateObject(single.id, { factionColor: undefined })}
+                className={`px-1.5 py-0.5 text-[8px] font-mono rounded border transition-colors ${!single.factionColor ? 'border-foreground text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              >
+                None
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Map Text properties */}
+        {single.type === 'map_text' && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            <span className="text-[8px] font-mono uppercase text-muted-foreground/60">Text Properties</span>
+            <div>
+              <label className="text-[9px] font-mono uppercase text-muted-foreground">Text Content</label>
+              <input type="text" value={single.text || ''} onChange={(e) => updateObject(single.id, { text: e.target.value })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" placeholder="Enter text..." />
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Font Size</label>
+                <input type="number" min={8} max={120} value={single.fontSize || 20} onChange={(e) => updateObject(single.id, { fontSize: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Color</label>
+                <input type="color" value={single.fontColor || '#ffffff'} onChange={(e) => updateObject(single.id, { fontColor: e.target.value })} className="w-full h-7 bg-muted border border-border rounded mt-1 cursor-pointer" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-mono uppercase text-muted-foreground">Background Color</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input type="color" value={single.bgColor || '#000000'} onChange={(e) => updateObject(single.id, { bgColor: e.target.value })} className="w-8 h-7 bg-muted border border-border rounded cursor-pointer" />
+                <button onClick={() => updateObject(single.id, { bgColor: single.bgColor ? undefined : '#000000' })} className={`px-2 py-0.5 text-[8px] font-mono rounded border transition-colors ${single.bgColor ? 'border-primary text-primary' : 'border-border text-muted-foreground'}`}>
+                  {single.bgColor ? 'On' : 'Off'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Animated Arrow properties */}
+        {single.type === 'animated_arrow' && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            <span className="text-[8px] font-mono uppercase text-muted-foreground/60">Arrow Animation</span>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Start (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.animStartTime || 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { animStartTime: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">End (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.animEndTime || 1000) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { animEndTime: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-mono uppercase text-muted-foreground">Arrow Color</label>
+              <input type="color" value={single.factionColor || single.color || '#d4a843'} onChange={(e) => updateObject(single.id, { factionColor: e.target.value, color: e.target.value })} className="w-full h-7 bg-muted border border-border rounded mt-1 cursor-pointer" />
+            </div>
+          </div>
+        )}
 
         {/* Effects (prioritized) */}
         <div className="pt-2 border-t border-border">

@@ -139,3 +139,15 @@ export const GROUP_COLORS = [
   '#00bcd4', '#e91e63', '#4caf50', '#ff9800',
   '#9c27b0', '#2196f3', '#ff5722', '#009688',
 ];
+
+/** Preset faction colors for quick assignment */
+export const FACTION_COLORS = [
+  { label: 'Blue', color: '#2196f3' },
+  { label: 'Red', color: '#e53935' },
+  { label: 'Green', color: '#43a047' },
+  { label: 'Orange', color: '#ff9800' },
+  { label: 'Purple', color: '#9c27b0' },
+  { label: 'Teal', color: '#009688' },
+  { label: 'Gold', color: '#d4a843' },
+  { label: 'White', color: '#e0e0e0' },
+];

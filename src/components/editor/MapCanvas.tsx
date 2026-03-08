@@ -248,7 +248,7 @@ const MapCanvas: React.FC = () => {
         stage.container().style.cursor = 'grabbing';
       }
     }
-    if (e.evt.button === 0 && activeTool === 'arrow') {
+    if (e.evt.button === 0 && (activeTool === 'arrow' || activeTool === 'animated_arrow')) {
       const stage = stageRef.current;
       if (!stage) return;
       const coords = getStageCoords(stage.getPointerPosition()!);
@@ -301,10 +301,16 @@ const MapCanvas: React.FC = () => {
       const dx = drawingArrow.x2 - drawingArrow.x1;
       const dy = drawingArrow.y2 - drawingArrow.y1;
       if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        const isAnimated = activeTool === 'animated_arrow';
+        const ct = useEditorStore.getState().currentTime;
+        const durMs = recordDurationSeconds * 1000;
         const obj: MapObject = {
-          id: uuid(), type: 'drawing', drawTool: 'arrow', x: 0, y: 0,
+          id: uuid(), type: isAnimated ? 'animated_arrow' : 'drawing',
+          drawTool: isAnimated ? undefined : 'arrow', x: 0, y: 0,
           points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
-          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false, color: '#d4a843',
+          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false,
+          color: '#d4a843',
+          ...(isAnimated ? { animStartTime: ct, animEndTime: ct + durMs } : {}),
         };
         addObject(obj);
         setSelectedIds([obj.id]);
@@ -338,6 +344,23 @@ const MapCanvas: React.FC = () => {
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0 || isPanning.current) return;
+
+    // Text tool — click to place a text label
+    if (activeTool === 'text') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      const obj: MapObject = {
+        id: uuid(), type: 'map_text', label: 'Text',
+        x: coords.x, y: coords.y, rotation: 0, scaleX: 1, scaleY: 1,
+        layer: 'units', visible: true, locked: false,
+        text: 'City Name', fontSize: 20, fontColor: '#ffffff',
+      };
+      addObject(obj);
+      setSelectedIds([obj.id]);
+      setActiveTool('select');
+      return;
+    }
 
     // Left-click adds waypoint when in path mode
     if (activeTool === 'path') {
@@ -541,12 +564,13 @@ const MapCanvas: React.FC = () => {
     }
   }
 
-  const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
+  const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect' || o.type === 'map_text'));
   const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
   const builtInIconSources = Object.values(UNIT_ICON_URLS);
   const allIconSources = [...customIconSources, ...builtInIconSources];
   const iconImages = useImageCache(allIconSources);
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
+  const animatedArrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'animated_arrow');
 
   // Status bar text for path drawing
   const getPathStatusText = () => {
@@ -632,6 +656,46 @@ const MapCanvas: React.FC = () => {
               </Group>
             );
           })}
+          {/* Animated arrows — progressive reveal during playback */}
+          {animatedArrows.map((d) => {
+            if (!d.points || d.points.length < 4) return null;
+            const color = d.factionColor || d.color || '#d4a843';
+            const isSelected = selectedIds.includes(d.id);
+            const startT = d.animStartTime ?? 0;
+            const endT = d.animEndTime ?? 1000;
+            const duration = Math.max(endT - startT, 1);
+            const progress = (isPlaying || Object.keys(derivedTransforms).length > 0)
+              ? Math.max(0, Math.min(1, (currentTime - startT) / duration))
+              : 1;
+            if (progress <= 0 && isPlaying) return null;
+            const showProgress = progress <= 0 ? 1 : progress; // Show full when before start in edit mode
+            const pts = d.points;
+            const x1 = pts[0], y1 = pts[1], x2 = pts[2], y2 = pts[3];
+            const ex = x1 + (x2 - x1) * showProgress;
+            const ey = y1 + (y2 - y1) * showProgress;
+            return (
+              <Group key={d.id}
+                onClick={(e) => {
+                  e.cancelBubble = true;
+                  if (e.evt.shiftKey) {
+                    setSelectedIds(selectedIds.includes(d.id) ? selectedIds.filter((id) => id !== d.id) : [...selectedIds, d.id]);
+                  } else {
+                    setSelectedIds([d.id]);
+                  }
+                }}
+                onContextMenu={(e) => handleObjectContextMenu(d.id, e)}
+              >
+                <Arrow points={[x1, y1, ex, ey]} stroke="#000000" strokeWidth={5} opacity={0.4} pointerLength={14} pointerWidth={12} lineCap="round" lineJoin="round" />
+                <Arrow points={[x1, y1, ex, ey]} stroke={color} strokeWidth={3} pointerLength={12} pointerWidth={10} fill={color} lineCap="round" lineJoin="round" opacity={0.9} />
+                {isSelected && (
+                  <Arrow points={[x1, y1, x2, y2]} stroke="#ffffff" strokeWidth={1} dash={[4, 4]} pointerLength={10} pointerWidth={8} opacity={0.4} listening={false} />
+                )}
+                {!isPlaying && (
+                  <Text x={x1} y={y1 - 16} text={`▶ ${((endT - startT) / 1000).toFixed(1)}s`} fontSize={9} fontFamily="JetBrains Mono, monospace" fill={color} opacity={0.7} listening={false} />
+                )}
+              </Group>
+            );
+          })}
           {drawingArrow && (
             <Arrow points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]} stroke="#d4a843" strokeWidth={3} dash={[10, 6]} pointerLength={12} pointerWidth={10} fill="#d4a843" opacity={0.6} listening={false} />
           )}
@@ -704,30 +768,56 @@ const MapCanvas: React.FC = () => {
                 )}
 
                 {/* Unit body */}
-                {!isStandaloneEffect && (
+                {!isStandaloneEffect && unit.type === 'unit' && (() => {
+                  const unitColor = unit.factionColor || UNIT_COLOR;
+                  return (
+                    <>
+                      <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${unitColor}44`} stroke={unitColor} strokeWidth={2} cornerRadius={4} />
+                      {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
+                      {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
+                      {!customIconImage && !builtInIconImage && (
+                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
+                      )}
+                      <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />
+                      {group && (
+                        <>
+                          <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />
+                          <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
+                        </>
+                      )}
+                      {/* Effect badges */}
+                      {staticEffects.slice(0, 3).map((eff, i) => (
+                        <React.Fragment key={eff.id}>
+                          <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={EFFECT_COLORS[eff.type] || '#ff6600'} opacity={0.85} listening={false} />
+                          <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
+                        </React.Fragment>
+                      ))}
+                      {staticEffects.length > 3 && (
+                        <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Map text rendering */}
+                {unit.type === 'map_text' && (
                   <>
-                    <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${UNIT_COLOR}44`} stroke={UNIT_COLOR} strokeWidth={2} cornerRadius={4} />
-                    {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
-                    {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
-                    {!customIconImage && !builtInIconImage && (
-                      <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={UNIT_COLOR} />
+                    {unit.bgColor && (
+                      <Rect x={-100} y={-(unit.fontSize || 20) / 2 - 4} width={200} height={(unit.fontSize || 20) + 8} fill={unit.bgColor} opacity={0.7} cornerRadius={3} listening={false} />
                     )}
-                    <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
-                    {group && (
-                      <>
-                        <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />
-                        <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
-                      </>
-                    )}
-                    {/* Effect badges */}
-                    {staticEffects.slice(0, 3).map((eff, i) => (
-                      <React.Fragment key={eff.id}>
-                        <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={EFFECT_COLORS[eff.type] || '#ff6600'} opacity={0.85} listening={false} />
-                        <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
-                      </React.Fragment>
-                    ))}
-                    {staticEffects.length > 3 && (
-                      <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
+                    <Text
+                      x={-150} y={-(unit.fontSize || 20) / 2}
+                      width={300}
+                      text={unit.text || 'Text'}
+                      fontSize={unit.fontSize || 20}
+                      fontFamily="JetBrains Mono, monospace"
+                      fontStyle="bold"
+                      fill={unit.fontColor || '#ffffff'}
+                      align="center"
+                      listening={false}
+                    />
+                    {isSelected && (
+                      <Rect x={-100} y={-(unit.fontSize || 20) / 2 - 6} width={200} height={(unit.fontSize || 20) + 12} stroke="#ffffff" strokeWidth={1} dash={[4, 3]} cornerRadius={3} opacity={0.5} listening={false} />
                     )}
                   </>
                 )}
