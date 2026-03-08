@@ -227,6 +227,16 @@ const MapCanvas: React.FC = () => {
       isDrawingArrow.current = true;
       setDrawingArrow({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
     }
+    // Marquee selection: start on left-click on empty canvas in select mode
+    if (e.evt.button === 0 && activeTool === 'select' && !isPlaying) {
+      const target = e.target;
+      const stage = stageRef.current;
+      if ((target === stage || target.attrs?.id === 'bg-rect') && stage) {
+        const coords = getStageCoords(stage.getPointerPosition()!);
+        isMarqueeSelecting.current = true;
+        setSelectionRect({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
+      }
+    }
   };
 
   const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
