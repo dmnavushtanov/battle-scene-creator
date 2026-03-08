@@ -137,9 +137,9 @@ const MapCanvas: React.FC = () => {
     lastDragPos.current = null;
   };
 
-  // During playback, use derivedTransforms; otherwise use object data directly
+  // Use derivedTransforms for rendering when scrubbing or playing (not during recording)
   const getObjectTransform = (id: string) => {
-    if (isPlaying && derivedTransforms[id]) {
+    if (!isRecording && derivedTransforms[id]) {
       return derivedTransforms[id];
     }
     return null; // use object's own position

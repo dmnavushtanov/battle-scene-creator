@@ -125,6 +125,26 @@ const TimelinePanel: React.FC = () => {
           onClick={handleTimelineClick}
           style={{ width: timelineWidth }}
         >
+          {/* Recording range indicator */}
+          {isRecording && recordingSession && (
+            <div
+              className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40"
+              style={{
+                left: recordingSession.startTime * pxPerMs,
+                width: recordingSession.durationMs * pxPerMs,
+              }}
+            />
+          )}
+          {/* Preview of next recording range (when not recording) */}
+          {!isRecording && !isPlaying && (
+            <div
+              className="absolute top-0 h-full bg-primary/5 border-l border-r border-primary/20 pointer-events-none"
+              style={{
+                left: currentTime * pxPerMs,
+                width: recordDurationSeconds * 1000 * pxPerMs,
+              }}
+            />
+          )}
           {Array.from({ length: Math.ceil(totalDuration / 1000) + 1 }, (_, i) => (
             <div
               key={i}
