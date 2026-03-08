@@ -33,20 +33,6 @@ const PropertiesPanel: React.FC = () => {
           </h2>
         </div>
         <div className="px-3 py-3 space-y-3">
-          {/* Scene duration */}
-          <div>
-            <label className="text-[9px] font-mono uppercase text-muted-foreground">Scene Duration (sec)</label>
-            <input
-              type="number"
-              min={1}
-              max={300}
-              step={1}
-              value={Math.round(sceneDuration / 1000)}
-              onChange={(e) => setSceneDuration(Number(e.target.value) * 1000)}
-              className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1"
-            />
-          </div>
-
           {/* Clear all keyframes */}
           <button
             onClick={clearAllKeyframes}
