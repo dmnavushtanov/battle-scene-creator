@@ -60,6 +60,8 @@ const Toolbar: React.FC = () => {
 
   const movedCount = recordingSession?.movedObjectIds?.size ?? 0;
 
+  const isPathTool = activeTool === 'path';
+
   const handleDelete = () => {
     if (!confirm('Are you sure you want to delete the selected object(s)?')) return;
     selectedIds.forEach((id) => removeObject(id));
@@ -189,17 +191,17 @@ const Toolbar: React.FC = () => {
                 }`}
               >
                 {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
-                {isRecording ? 'Stop' : 'Record'}
+                {isRecording ? 'Stop & Save' : 'Record'}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[280px]">
               {isRecording ? (
-                <p className="text-xs">Click Stop to save recorded movements as keyframes</p>
+                <p className="text-xs">Click Stop & Save to create keyframes from recorded movements</p>
               ) : (
                 <div className="text-xs space-y-1">
                   <p className="font-semibold">Record unit movement</p>
-                  <p>① Set duration → ② Click Record → ③ Drag units → ④ Stop</p>
-                  <p className="text-muted-foreground">All dragged units will animate over the set duration starting at the current playhead position.</p>
+                  <p>① Set duration → ② Click Record → ③ Drag units → ④ Stop & Save</p>
+                  <p className="text-muted-foreground">All dragged units will animate over the set duration starting at the current playhead.</p>
                 </div>
               )}
             </TooltipContent>
@@ -209,8 +211,10 @@ const Toolbar: React.FC = () => {
             <div className="flex items-center gap-1 ml-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8px] font-mono uppercase text-muted-foreground/70">Playback</span>
+                  <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${isPathTool ? 'bg-accent/20 border border-accent/40' : ''}`}>
+                    <span className="text-[8px] font-mono uppercase text-muted-foreground/70">
+                      {isPathTool ? 'Path animates over' : 'Record'}
+                    </span>
                     <input
                       type="number"
                       min={0.5}
@@ -220,21 +224,27 @@ const Toolbar: React.FC = () => {
                       onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
                       className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
                     />
-                    <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+                    <span className="text-[9px] font-mono text-muted-foreground">
+                      {isPathTool ? 'sec' : 'sec for moved units'}
+                    </span>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[240px]">
-                  <p className="text-xs">How many seconds the recorded movement takes during playback. Drag units while recording — their movement animates over this duration.</p>
+                <TooltipContent side="bottom" className="max-w-[260px]">
+                  <p className="text-xs">
+                    {isPathTool
+                      ? 'The path waypoints will be spread over this duration on the timeline.'
+                      : 'How many seconds the recorded movement takes. Drag units while recording — their movement animates over this duration.'}
+                  </p>
                 </TooltipContent>
               </Tooltip>
               <span className="text-[8px] font-mono text-muted-foreground/60 ml-1 hidden sm:inline">
-                {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
+                at {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-destructive font-semibold flex items-center gap-1">
-                🔴 Drag units now
+                🔴 Recording — drag units now
               </span>
               {movedCount > 0 && (
                 <span className="text-[9px] font-mono bg-destructive/20 text-destructive px-1.5 py-0.5 rounded-full">
@@ -242,7 +252,7 @@ const Toolbar: React.FC = () => {
                 </span>
               )}
               <span className="text-[8px] font-mono text-muted-foreground/60 hidden sm:inline">
-                Movement will play over {recordDurationSeconds}s
+                {recordDurationSeconds}s at {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
               </span>
             </div>
           )}
@@ -302,11 +312,13 @@ const Toolbar: React.FC = () => {
           <TooltipContent side="bottom" className="max-w-[320px]">
             <div className="text-xs space-y-1">
               <p className="font-semibold">Quick Guide</p>
-              <p>• <strong>Record</strong>: Set playback duration → Record → Drag units → Stop</p>
-              <p>• <strong>Path tool</strong>: Click waypoints, right-click to save</p>
+              <p>• <strong>Record</strong>: Set duration → Record → Drag units → Stop & Save</p>
+              <p>• <strong>Path tool</strong>: Select 1 unit → Path → click waypoints → right-click to save</p>
+              <p>• <strong>Path duration</strong>: uses the "Record __ sec" value from toolbar</p>
               <p>• <strong>Ctrl+C / Ctrl+V</strong>: Copy & paste units or effects</p>
               <p>• <strong>Right-click canvas</strong>: Quick-add menu</p>
               <p>• <strong>Shift+click</strong>: Multi-select units</p>
+              <p>• <strong>Shift+click keyframes</strong>: Select multiple, drag together</p>
             </div>
           </TooltipContent>
         </Tooltip>
