@@ -361,7 +361,7 @@ const TimelinePanel: React.FC = () => {
       {/* Timeline tracks */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
-        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
+        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline border-b border-border' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
           )}

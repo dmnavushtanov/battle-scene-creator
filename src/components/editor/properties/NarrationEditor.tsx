@@ -32,7 +32,16 @@ const NarrationEditor: React.FC = () => {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         const reader = new FileReader();
-        reader.onload = () => update({ audioUrl: reader.result as string });
+        reader.onload = () => {
+          const audioUrl = reader.result as string;
+          // Auto-set narration duration to match voice recording length
+          const audio = new Audio(audioUrl);
+          audio.onloadedmetadata = () => {
+            const audioDurMs = Math.ceil(audio.duration * 1000);
+            update({ audioUrl, duration: audioDurMs });
+          };
+          audio.onerror = () => update({ audioUrl });
+        };
         reader.readAsDataURL(blob);
         stream.getTracks().forEach((t) => t.stop());
       };
