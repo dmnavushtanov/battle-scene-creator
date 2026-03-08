@@ -219,9 +219,18 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     startRecording: () => {
       const { currentTime, recordDurationSeconds } = get();
+      const durationMs = recordDurationSeconds * 1000;
+      const endTime = currentTime + durationMs;
+
+      // Auto-extend scene duration if recording would exceed it
+      const scene = get().getActiveScene();
+      if (endTime > scene.duration) {
+        get()._updateActiveScene((s) => ({ ...s, duration: Math.ceil(endTime / 1000) * 1000 }));
+      }
+
       set({
         isRecording: true,
-        recordingSession: createRecordingSession(currentTime, recordDurationSeconds * 1000),
+        recordingSession: createRecordingSession(currentTime, durationMs),
       });
     },
 

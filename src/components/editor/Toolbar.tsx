@@ -37,8 +37,11 @@ const Toolbar: React.FC = () => {
   const stopRecording = useEditorStore((s) => s.stopRecording);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
+  const currentTime = useEditorStore((s) => s.currentTime);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const formatSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
   const handleDelete = () => {
     selectedIds.forEach((id) => removeObject(id));
@@ -91,35 +94,46 @@ const Toolbar: React.FC = () => {
         ))}
       </div>
 
-      {/* Record button + duration */}
-      <button
-        onClick={handleToggleRecording}
-        title={isRecording ? 'Stop Recording' : 'Record Movement'}
-        className={`p-2 rounded transition-colors flex items-center gap-1.5 text-[10px] font-mono uppercase border ${
-          isRecording
-            ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted border-border'
-        }`}
-      >
-        {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
-        {isRecording ? 'Stop' : 'Record'}
-      </button>
+      {/* Record button + segment info */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={handleToggleRecording}
+          title={isRecording
+            ? 'Stop recording and create keyframes'
+            : `Record a ${recordDurationSeconds}s animation segment starting at ${formatSec(currentTime)}`}
+          className={`p-2 rounded transition-colors flex items-center gap-1.5 text-[10px] font-mono uppercase border ${
+            isRecording
+              ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted border-border'
+          }`}
+        >
+          {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
+          {isRecording ? 'Stop' : 'Record'}
+        </button>
 
-      {!isRecording && (
-        <div className="flex items-center gap-1 ml-1">
-          <input
-            type="number"
-            min={0.5}
-            max={30}
-            step={0.5}
-            value={recordDurationSeconds}
-            onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
-            className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
-            title="Recording duration (seconds)"
-          />
-          <span className="text-[9px] font-mono text-muted-foreground">sec</span>
-        </div>
-      )}
+        {!isRecording ? (
+          <div className="flex items-center gap-1 ml-0.5">
+            <input
+              type="number"
+              min={0.5}
+              max={30}
+              step={0.5}
+              value={recordDurationSeconds}
+              onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
+              className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
+              title="How long the recorded movement will take during playback"
+            />
+            <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+            <span className="text-[8px] font-mono text-muted-foreground/60 ml-1 hidden sm:inline">
+              {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
+            </span>
+          </div>
+        ) : (
+          <span className="text-[9px] font-mono text-destructive/80">
+            Drag units now — positions will animate over {recordDurationSeconds}s
+          </span>
+        )}
+      </div>
 
       <div className="border-r border-border h-5 mx-2" />
 
