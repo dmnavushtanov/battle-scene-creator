@@ -71,6 +71,9 @@ const MapCanvas: React.FC = () => {
   // Arrow drawing state
   const isDrawingArrow = useRef(false);
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  // Path drawing state
+  const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
+  const isDrawingPath = useRef(false);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
