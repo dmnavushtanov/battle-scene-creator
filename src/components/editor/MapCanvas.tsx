@@ -589,7 +589,9 @@ const MapCanvas: React.FC = () => {
             const uvis = derived ? derived.visible : unit.visible;
             if (!uvis) return null;
 
-            const customIconImage = unit.customIcon ? customIconImages.get(unit.customIcon) : null;
+            const customIconImage = unit.customIcon ? iconImages.get(unit.customIcon) : null;
+            const builtInIconUrl = UNIT_ICON_URLS[unit.unitType || 'infantry'];
+            const builtInIconImage = builtInIconUrl ? iconImages.get(builtInIconUrl) : null;
             const isStandaloneEffect = unit.type === 'effect';
             const unitEffects = derivedEffects[unit.id] || [];
             const shakeOffset = getShakeOffset(unitEffects, currentTime);
