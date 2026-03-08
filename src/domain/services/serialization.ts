@@ -53,6 +53,7 @@ export function importProject(json: string): ProjectData {
       effectsByObjectId: {},
       narrationEvents: [],
       overlayEvents: [],
+      groups: {},
     };
 
     return {
