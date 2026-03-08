@@ -248,7 +248,7 @@ const MapCanvas: React.FC = () => {
         stage.container().style.cursor = 'grabbing';
       }
     }
-    if (e.evt.button === 0 && activeTool === 'arrow') {
+    if (e.evt.button === 0 && (activeTool === 'arrow' || activeTool === 'animated_arrow')) {
       const stage = stageRef.current;
       if (!stage) return;
       const coords = getStageCoords(stage.getPointerPosition()!);
