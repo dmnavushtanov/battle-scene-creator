@@ -191,7 +191,7 @@ const MapCanvas: React.FC = () => {
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const target = e.target;
-    const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect';
+    const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect' || target.attrs.id?.startsWith('grid-');
     if (isEmptySpace && !panDidMove.current) setSelectedIds([]);
   };
 
