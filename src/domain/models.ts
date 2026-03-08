@@ -10,7 +10,7 @@ export type UnitType =
   | 'tree' | 'rock' | 'mountain' | 'river';
 
 export type ObjectCategory = 'military' | 'structure' | 'prop' | 'terrain';
-export type DrawToolType = 'select' | 'arrow' | 'path';
+export type DrawToolType = 'select' | 'arrow' | 'path' | 'animated_arrow' | 'text';
 export type LayerType = 'background' | 'drawings' | 'units' | 'effects';
 
 export type EffectType = 'explosion' | 'shake' | 'crack' | 'blood' | 'smoke' | 'fire' | 'gunshot';
