@@ -283,6 +283,29 @@ const MapCanvas: React.FC = () => {
       }
       setDrawingArrow(null);
     }
+    // Marquee selection: finalize
+    if (isMarqueeSelecting.current && selectionRect) {
+      isMarqueeSelecting.current = false;
+      const minX = Math.min(selectionRect.x1, selectionRect.x2);
+      const maxX = Math.max(selectionRect.x1, selectionRect.x2);
+      const minY = Math.min(selectionRect.y1, selectionRect.y2);
+      const maxY = Math.max(selectionRect.y1, selectionRect.y2);
+      // Only select if dragged at least 5px
+      if (maxX - minX > 5 || maxY - minY > 5) {
+        const matchingIds = objectOrder.filter((id) => {
+          const obj = objectsById[id];
+          if (!obj || obj.type === 'drawing') return false;
+          const derived = getObjectTransform(id);
+          const ox = derived ? derived.x : obj.x;
+          const oy = derived ? derived.y : obj.y;
+          return ox >= minX && ox <= maxX && oy >= minY && oy <= maxY;
+        });
+        if (matchingIds.length > 0) {
+          setSelectedIds(matchingIds);
+        }
+      }
+      setSelectionRect(null);
+    }
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {

@@ -51,6 +51,38 @@ const StartMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: stri
   );
 };
 
+const FileMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: string) => void }> = ({ onNewProject, onLoadProject }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { onLoadProject(reader.result as string); };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <Menu size={16} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[160px]">
+          <DropdownMenuItem onClick={onNewProject} className="text-xs font-mono gap-2">
+            <FilePlus size={14} /> New Project
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => fileRef.current?.click()} className="text-xs font-mono gap-2">
+            <FolderOpen size={14} /> Load Project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <input ref={fileRef} type="file" accept=".json" onChange={handleFile} className="hidden" />
+    </>
+  );
+};
+
 const Index: React.FC = () => {
   const [projectStarted, setProjectStarted] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
