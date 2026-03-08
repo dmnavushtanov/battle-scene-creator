@@ -60,6 +60,8 @@ const TimelinePanel: React.FC = () => {
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
+  // Multi-select keyframes: set of "objectId:index" keys
+  const [selectedKfSet, setSelectedKfSet] = useState<Set<string>>(new Set());
 
   // Generalized delete confirmation
   const [pendingDelete, setPendingDelete] = useState<{ label: string; onConfirm: () => void } | null>(null);
