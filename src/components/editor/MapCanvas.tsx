@@ -229,7 +229,7 @@ const MapCanvas: React.FC = () => {
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
 
   return (
-    <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative">
+    <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative" onContextMenu={(e) => e.preventDefault()} onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}>
       <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-panel/90 border border-border rounded text-[10px] font-mono text-muted-foreground">
         {Math.round(stageScale * 100)}% | {objectOrder.length} objects
       </div>
