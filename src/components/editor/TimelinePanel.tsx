@@ -1,6 +1,9 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Trash2 } from 'lucide-react';
+import { v4 as uuid } from 'uuid';
+import type { NarrationEvent, OverlayEvent } from '@/domain/models';
+import { EFFECT_PRESETS } from '@/domain/services/effects';
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -11,6 +14,10 @@ const TimelinePanel: React.FC = () => {
   const isRecording = useEditorStore((s) => s.isRecording);
   const recordingSession = useEditorStore((s) => s.recordingSession);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
+  const addNarration = useEditorStore((s) => s.addNarration);
+  const removeNarration = useEditorStore((s) => s.removeNarration);
+  const addOverlay = useEditorStore((s) => s.addOverlay);
+  const removeOverlay = useEditorStore((s) => s.removeOverlay);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -38,13 +45,10 @@ const TimelinePanel: React.FC = () => {
     seekTo(time);
   };
 
-  // Count total keyframes
   const totalKeyframes = Object.values(activeScene.keyframesByObjectId).reduce(
-    (sum, kfs) => sum + kfs.length,
-    0
+    (sum, kfs) => sum + kfs.length, 0
   );
 
-  // Playback loop
   const playRef = React.useRef<number | null>(null);
   const playStartRef = React.useRef<{ wallTime: number; sceneTime: number }>({ wallTime: 0, sceneTime: 0 });
 
@@ -55,20 +59,16 @@ const TimelinePanel: React.FC = () => {
       const tick = (now: number) => {
         const elapsed = now - playStartRef.current.wallTime;
         const newTime = playStartRef.current.sceneTime + elapsed;
-
         if (newTime >= totalDuration) {
           seekTo(0);
           setIsPlaying(false);
           return;
         }
-
-        // Update currentTime without re-triggering this effect
         useEditorStore.setState({ currentTime: newTime });
         computeDerivedTransforms(newTime);
         playRef.current = requestAnimationFrame(tick);
       };
 
-      // Compute initial frame
       computeDerivedTransforms(currentTime);
       playRef.current = requestAnimationFrame(tick);
     }
@@ -81,90 +81,147 @@ const TimelinePanel: React.FC = () => {
     .map((id) => activeScene.objectsById[id])
     .filter((o) => o && o.type === 'unit');
 
+  const narrationEvents = activeScene.narrationEvents || [];
+  const overlayEvents = activeScene.overlayEvents || [];
+
+  const handleAddNarration = () => {
+    const event: NarrationEvent = {
+      id: uuid(),
+      type: 'text',
+      startTime: currentTime,
+      duration: 3000,
+      text: 'Narration text...',
+      position: 'bottom',
+      fontSize: 24,
+      fontStyle: 'normal',
+      textAnimation: 'fade',
+      textColor: '#ffffff',
+      bgOpacity: 0.6,
+    };
+    addNarration(event);
+  };
+
+  const handleAddOverlay = () => {
+    const event: OverlayEvent = {
+      id: uuid(),
+      startTime: currentTime,
+      duration: 4000,
+      imageUrl: '',
+      imagePosition: 'center',
+      imageScale: 1,
+      backgroundEffect: 'blur+dim',
+      dimOpacity: 0.7,
+      title: 'Title',
+      subtitle: 'Subtitle',
+      textPosition: 'below-image',
+      transition: 'fade',
+    };
+    addOverlay(event);
+  };
+
   return (
     <div className="bg-timeline border-t border-border flex flex-col h-full">
       {/* Controls bar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        <button
-          onClick={() => seekTo(0)}
-          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
           <SkipBack size={14} />
         </button>
-        <button
-          onClick={() => setIsPlaying(!isPlaying)}
-          className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors"
-        >
+        <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
         </button>
-        <button
-          onClick={() => seekTo(totalDuration)}
-          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
           <SkipForward size={14} />
         </button>
 
-        <span className="font-mono text-xs text-primary ml-2 amber-glow">
-          {formatTime(currentTime)}
-        </span>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          / {formatTime(totalDuration)}
-        </span>
+        <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
 
         <div className="flex-1" />
 
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {totalKeyframes} keyframes
-        </span>
+        <span className="text-[10px] font-mono text-muted-foreground">{totalKeyframes} keyframes</span>
       </div>
 
       {/* Timeline tracks */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
-        <div
-          className="relative h-5 mb-1 cursor-pointer"
-          onClick={handleTimelineClick}
-          style={{ width: timelineWidth }}
-        >
-          {/* Recording range indicator */}
+        <div className="relative h-5 mb-1 cursor-pointer" onClick={handleTimelineClick} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div
               className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40"
-              style={{
-                left: recordingSession.startTime * pxPerMs,
-                width: recordingSession.durationMs * pxPerMs,
-              }}
+              style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }}
             />
           )}
-          {/* Preview of next recording range (when not recording) */}
           {!isRecording && !isPlaying && (
             <div
               className="absolute top-0 h-full bg-primary/5 border-l border-r border-primary/20 pointer-events-none"
-              style={{
-                left: currentTime * pxPerMs,
-                width: recordDurationSeconds * 1000 * pxPerMs,
-              }}
+              style={{ left: currentTime * pxPerMs, width: recordDurationSeconds * 1000 * pxPerMs }}
             />
           )}
           {Array.from({ length: Math.ceil(totalDuration / 1000) + 1 }, (_, i) => (
-            <div
-              key={i}
-              className="absolute top-0 flex flex-col items-center"
-              style={{ left: i * 1000 * pxPerMs }}
-            >
+            <div key={i} className="absolute top-0 flex flex-col items-center" style={{ left: i * 1000 * pxPerMs }}>
               <div className="w-px h-3 bg-border" />
               <span className="text-[8px] font-mono text-muted-foreground">{i}s</span>
             </div>
           ))}
-          <div
-            className="absolute top-0 w-0.5 h-full bg-playhead z-10"
-            style={{ left: currentTime * pxPerMs }}
-          />
+          <div className="absolute top-0 w-0.5 h-full bg-playhead z-10" style={{ left: currentTime * pxPerMs }} />
+        </div>
+
+        {/* Narration track */}
+        <div className="relative h-6 mb-0.5 rounded-sm border border-accent/30 bg-accent/5" style={{ width: timelineWidth }}>
+          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-accent/70 uppercase pointer-events-none flex items-center gap-1">
+            📝 Narration
+            <button onClick={(e) => { e.stopPropagation(); handleAddNarration(); }} className="ml-1 hover:text-accent transition-colors">
+              <Plus size={10} />
+            </button>
+          </span>
+          {narrationEvents.map((n) => (
+            <div
+              key={n.id}
+              className="absolute top-1 h-4 bg-accent/20 border border-accent/40 rounded-sm flex items-center px-1 group cursor-default"
+              style={{ left: n.startTime * pxPerMs, width: Math.max(n.duration * pxPerMs, 20) }}
+              title={n.text || 'Narration'}
+            >
+              <span className="text-[7px] font-mono text-accent truncate">{n.text?.slice(0, 15) || '...'}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); removeNarration(n.id); }}
+                className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 size={8} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Overlay track */}
+        <div className="relative h-6 mb-0.5 rounded-sm border border-secondary/30 bg-secondary/5" style={{ width: timelineWidth }}>
+          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-secondary-foreground/70 uppercase pointer-events-none flex items-center gap-1">
+            🖼️ Overlay
+            <button onClick={(e) => { e.stopPropagation(); handleAddOverlay(); }} className="ml-1 hover:text-secondary-foreground transition-colors">
+              <Plus size={10} />
+            </button>
+          </span>
+          {overlayEvents.map((o) => (
+            <div
+              key={o.id}
+              className="absolute top-1 h-4 bg-secondary/20 border border-secondary/40 rounded-sm flex items-center px-1 group cursor-default"
+              style={{ left: o.startTime * pxPerMs, width: Math.max(o.duration * pxPerMs, 20) }}
+              title={o.title || 'Overlay'}
+            >
+              <span className="text-[7px] font-mono text-secondary-foreground truncate">{o.title || 'Overlay'}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); removeOverlay(o.id); }}
+                className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 size={8} />
+              </button>
+            </div>
+          ))}
         </div>
 
         {/* Unit tracks */}
         {units.slice(0, 10).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
+          const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
 
           return (
@@ -177,27 +234,37 @@ const TimelinePanel: React.FC = () => {
               onClick={(e) => {
                 e.stopPropagation();
                 if (e.shiftKey) {
-                  setSelectedIds(
-                    selectedIds.includes(unit.id)
-                      ? selectedIds.filter((id) => id !== unit.id)
-                      : [...selectedIds, unit.id]
-                  );
+                  setSelectedIds(selectedIds.includes(unit.id) ? selectedIds.filter((id) => id !== unit.id) : [...selectedIds, unit.id]);
                 } else {
                   setSelectedIds([unit.id]);
                 }
               }}
             >
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none">
-                {unit.label || unit.unitType}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
+                {unit.label || unit.unitType}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}{unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
               </span>
               {unitKfs.map((kf, idx) => (
                 <div
-                  key={idx}
+                  key={`kf-${idx}`}
                   className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none"
                   style={{ left: kf.time * pxPerMs - 6 }}
                   title={`t=${formatTime(kf.time)}`}
                 />
               ))}
+              {/* Effect markers */}
+              {unitEffects.map((eff) => {
+                const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
+                return (
+                  <div
+                    key={eff.id}
+                    className="absolute top-1 h-4 bg-destructive/20 border border-destructive/30 rounded-sm pointer-events-none flex items-center justify-center"
+                    style={{ left: eff.startTime * pxPerMs, width: Math.max(eff.duration * pxPerMs, 8) }}
+                    title={`${preset?.label || eff.type} @ ${formatTime(eff.startTime)}`}
+                  >
+                    <span className="text-[7px]">{preset?.icon || '?'}</span>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
