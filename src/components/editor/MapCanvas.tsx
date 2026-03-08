@@ -472,8 +472,9 @@ const MapCanvas: React.FC = () => {
   }
 
   const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
-  const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
-  const customIconImages = useCustomIconCache(customIconSources);
+  const builtInIconSources = Object.values(UNIT_ICON_URLS);
+  const allIconSources = [...customIconSources, ...builtInIconSources];
+  const iconImages = useImageCache(allIconSources);
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
 
   // Status bar text for path drawing
