@@ -14,12 +14,19 @@ import {
   StopCircle,
   Loader2,
   Route,
+  Info,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 
-const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
-  { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select' },
-  { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow' },
-  { tool: 'path', icon: <Route size={16} />, label: 'Path (click waypoints, right-click to save, Esc to cancel)' },
+const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string; tip: string }[] = [
+  { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select', tip: 'Select and move units on the canvas' },
+  { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow', tip: 'Draw arrows between points' },
+  { tool: 'path', icon: <Route size={16} />, label: 'Path', tip: 'Draw movement paths — click waypoints, right-click to save, Esc to cancel' },
 ];
 
 const Toolbar: React.FC = () => {
@@ -36,6 +43,7 @@ const Toolbar: React.FC = () => {
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const recordingSession = useEditorStore((s) => s.recordingSession);
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
     return scene || s.project.scenes[0];
@@ -50,7 +58,10 @@ const Toolbar: React.FC = () => {
 
   const formatSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
+  const movedCount = recordingSession?.movedObjectIds?.size ?? 0;
+
   const handleDelete = () => {
+    if (!confirm('Are you sure you want to delete the selected object(s)?')) return;
     selectedIds.forEach((id) => removeObject(id));
   };
 
@@ -134,133 +145,219 @@ const Toolbar: React.FC = () => {
       alert('Video export failed. Your browser may not support WebM recording.');
     } finally {
       setIsExporting(false);
-      // Restore current time
       const time = useEditorStore.getState().currentTime;
       computeDerivedTransforms(time);
     }
   };
 
   return (
-    <div className="flex items-center gap-1 px-3 py-2 bg-panel border-b border-border">
-      {/* Draw tools */}
-      <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-2">
-        {TOOLS.map((t) => (
-          <button
-            key={t.tool}
-            onClick={() => setActiveTool(t.tool)}
-            title={t.label}
-            className={`p-2 rounded transition-colors ${
-              activeTool === t.tool
-                ? 'bg-primary/20 text-primary'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            {t.icon}
-          </button>
-        ))}
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center gap-1 px-3 py-2 bg-panel border-b border-border select-none">
+        {/* Draw tools */}
+        <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-2">
+          {TOOLS.map((t) => (
+            <Tooltip key={t.tool}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setActiveTool(t.tool)}
+                  className={`p-2 rounded transition-colors ${
+                    activeTool === t.tool
+                      ? 'bg-primary/20 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {t.icon}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">{t.tip}</p>
+              </TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+
+        {/* Record section */}
+        <div className="flex items-center gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleToggleRecording}
+                className={`p-2 rounded transition-colors flex items-center gap-1.5 text-[10px] font-mono uppercase border ${
+                  isRecording
+                    ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted border-border'
+                }`}
+              >
+                {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
+                {isRecording ? 'Stop' : 'Record'}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px]">
+              {isRecording ? (
+                <p className="text-xs">Click Stop to save recorded movements as keyframes</p>
+              ) : (
+                <div className="text-xs space-y-1">
+                  <p className="font-semibold">Record unit movement</p>
+                  <p>① Set duration → ② Click Record → ③ Drag units → ④ Stop</p>
+                  <p className="text-muted-foreground">All dragged units will animate over the set duration starting at the current playhead position.</p>
+                </div>
+              )}
+            </TooltipContent>
+          </Tooltip>
+
+          {!isRecording ? (
+            <div className="flex items-center gap-1 ml-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8px] font-mono uppercase text-muted-foreground/70">Playback</span>
+                    <input
+                      type="number"
+                      min={0.5}
+                      max={30}
+                      step={0.5}
+                      value={recordDurationSeconds}
+                      onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
+                      className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
+                    />
+                    <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[240px]">
+                  <p className="text-xs">How many seconds the recorded movement takes during playback. Drag units while recording — their movement animates over this duration.</p>
+                </TooltipContent>
+              </Tooltip>
+              <span className="text-[8px] font-mono text-muted-foreground/60 ml-1 hidden sm:inline">
+                {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-destructive font-semibold flex items-center gap-1">
+                🔴 Drag units now
+              </span>
+              {movedCount > 0 && (
+                <span className="text-[9px] font-mono bg-destructive/20 text-destructive px-1.5 py-0.5 rounded-full">
+                  {movedCount} unit{movedCount !== 1 ? 's' : ''} moved
+                </span>
+              )}
+              <span className="text-[8px] font-mono text-muted-foreground/60 hidden sm:inline">
+                Movement will play over {recordDurationSeconds}s
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="border-r border-border h-5 mx-2" />
+
+        {/* Actions */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleDelete}
+              disabled={selectedIds.length === 0}
+              className="p-2 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
+            >
+              <Trash2 size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="text-xs">Delete selected objects</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="border-r border-border h-5 mx-2" />
+
+        {/* Scene Length */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-mono uppercase text-muted-foreground">Scene Length</span>
+              <input
+                type="number"
+                min={1}
+                max={300}
+                step={1}
+                value={Math.round(sceneDuration / 1000)}
+                onChange={(e) => setSceneDuration(Number(e.target.value) * 1000)}
+                className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
+              />
+              <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="text-xs">Total duration of this scene/video in seconds</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="flex-1" />
+
+        {/* How-to hint */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button className="p-1.5 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+              <Info size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[320px]">
+            <div className="text-xs space-y-1">
+              <p className="font-semibold">Quick Guide</p>
+              <p>• <strong>Record</strong>: Set playback duration → Record → Drag units → Stop</p>
+              <p>• <strong>Path tool</strong>: Click waypoints, right-click to save</p>
+              <p>• <strong>Ctrl+C / Ctrl+V</strong>: Copy & paste units or effects</p>
+              <p>• <strong>Right-click canvas</strong>: Quick-add menu</p>
+              <p>• <strong>Shift+click</strong>: Multi-select units</p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Project actions */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Upload size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="text-xs">Import project from JSON file</p>
+          </TooltipContent>
+        </Tooltip>
+        <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleExport}
+              className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Download size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="text-xs">Export project as JSON</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleVideoExport}
+              disabled={isExporting}
+              className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1 flex items-center gap-1.5 border border-border text-[10px] font-mono uppercase disabled:opacity-50"
+            >
+              {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
+              {isExporting ? `${exportProgress}%` : 'Video'}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p className="text-xs">{isExporting ? `Exporting... ${exportProgress}%` : 'Export animation as WebM video'}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
-
-      {/* Record button + segment info */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={handleToggleRecording}
-          title={isRecording
-            ? 'Stop recording and create keyframes'
-            : `Record a ${recordDurationSeconds}s animation segment starting at ${formatSec(currentTime)}`}
-          className={`p-2 rounded transition-colors flex items-center gap-1.5 text-[10px] font-mono uppercase border ${
-            isRecording
-              ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted border-border'
-          }`}
-        >
-          {isRecording ? <StopCircle size={14} /> : <CircleDot size={14} />}
-          {isRecording ? 'Stop' : 'Record'}
-        </button>
-
-        {!isRecording ? (
-          <div className="flex items-center gap-1 ml-0.5">
-            <input
-              type="number"
-              min={0.5}
-              max={30}
-              step={0.5}
-              value={recordDurationSeconds}
-              onChange={(e) => setRecordDurationSeconds(Math.max(0.5, Number(e.target.value)))}
-              className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
-              title="How long the recorded movement will take during playback"
-            />
-            <span className="text-[9px] font-mono text-muted-foreground">sec</span>
-            <span className="text-[8px] font-mono text-muted-foreground/60 ml-1 hidden sm:inline">
-              {formatSec(currentTime)} → {formatSec(currentTime + recordDurationSeconds * 1000)}
-            </span>
-          </div>
-        ) : (
-          <span className="text-[9px] font-mono text-destructive/80">
-            Drag units now — positions will animate over {recordDurationSeconds}s
-          </span>
-        )}
-      </div>
-
-      <div className="border-r border-border h-5 mx-2" />
-
-      {/* Actions */}
-      <button
-        onClick={handleDelete}
-        disabled={selectedIds.length === 0}
-        title="Delete selected"
-        className="p-2 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-30"
-      >
-        <Trash2 size={16} />
-      </button>
-
-      <div className="border-r border-border h-5 mx-2" />
-
-      {/* Scene Duration - always visible */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[9px] font-mono uppercase text-muted-foreground">Duration</span>
-        <input
-          type="number"
-          min={1}
-          max={300}
-          step={1}
-          value={Math.round(sceneDuration / 1000)}
-          onChange={(e) => setSceneDuration(Number(e.target.value) * 1000)}
-          className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
-          title="Total scene/video duration in seconds"
-        />
-        <span className="text-[9px] font-mono text-muted-foreground">sec</span>
-      </div>
-
-      <div className="flex-1" />
-
-      {/* Project actions */}
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        title="Import project"
-        className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      >
-        <Upload size={16} />
-      </button>
-      <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
-      
-      <button
-        onClick={handleExport}
-        title="Export project"
-        className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      >
-        <Download size={16} />
-      </button>
-
-      <button
-        onClick={handleVideoExport}
-        disabled={isExporting}
-        title={isExporting ? `Exporting... ${exportProgress}%` : 'Export animation as WebM video'}
-        className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1 flex items-center gap-1.5 border border-border text-[10px] font-mono uppercase disabled:opacity-50"
-      >
-        {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
-        {isExporting ? `${exportProgress}%` : 'Video'}
-      </button>
-    </div>
+    </TooltipProvider>
   );
 };
 
