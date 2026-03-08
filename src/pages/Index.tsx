@@ -6,14 +6,28 @@ import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 const NarrationOverlay: React.FC = () => {
   const activeNarrations = useEditorStore((s) => s.activeNarrations);
   const activeOverlay = useEditorStore((s) => s.activeOverlay);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTime = useEditorStore((s) => s.currentTime);
+  const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
 
-  if (!isPlaying) return null;
+  // Show overlay preview when editing (not playing) and an overlay is selected
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
+  const editingOverlay = !isPlaying && selectedOverlayId
+    ? activeScene.overlayEvents.find((o) => o.id === selectedOverlayId) || null
+    : null;
+
+  const showPlaybackOverlay = isPlaying ? activeOverlay : null;
+  const overlayToShow = showPlaybackOverlay || editingOverlay;
+
+  if (!isPlaying && !editingOverlay && activeNarrations.length === 0) return null;
 
   const positionMap: Record<string, React.CSSProperties> = {
     top: { top: 40, left: '50%', transform: 'translateX(-50%)' },
@@ -23,20 +37,25 @@ const NarrationOverlay: React.FC = () => {
 
   return (
     <>
-      {activeOverlay && (
+      {overlayToShow && (
         <div className="absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-500">
-          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${activeOverlay.dimOpacity})`, backdropFilter: activeOverlay.backgroundEffect.includes('blur') ? 'blur(8px)' : undefined }} />
-          <div className="relative z-10 flex flex-col items-center gap-4 max-w-lg" style={{ alignSelf: activeOverlay.imagePosition === 'left' ? 'flex-start' : activeOverlay.imagePosition === 'right' ? 'flex-end' : 'center' }}>
-            {activeOverlay.imageUrl && (
-              <img src={activeOverlay.imageUrl} alt={activeOverlay.title || ''} className="rounded-lg border-2 border-primary/30 shadow-lg max-h-64 object-contain" style={{ transform: `scale(${activeOverlay.imageScale})` }} />
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${overlayToShow.dimOpacity})`, backdropFilter: overlayToShow.backgroundEffect.includes('blur') ? 'blur(8px)' : undefined }} />
+          <div className="relative z-10 flex flex-col items-center gap-4 max-w-lg" style={{ alignSelf: overlayToShow.imagePosition === 'left' ? 'flex-start' : overlayToShow.imagePosition === 'right' ? 'flex-end' : 'center' }}>
+            {overlayToShow.imageUrl && (
+              <img src={overlayToShow.imageUrl} alt={overlayToShow.title || ''} className="rounded-lg border-2 border-primary/30 shadow-lg max-h-64 object-contain" style={{ transform: `scale(${overlayToShow.imageScale})` }} />
             )}
-            {activeOverlay.title && <h2 className="font-mono text-xl font-bold text-primary amber-glow text-center">{activeOverlay.title}</h2>}
-            {activeOverlay.subtitle && <p className="font-mono text-sm text-foreground/80 text-center">{activeOverlay.subtitle}</p>}
+            {overlayToShow.title && <h2 className="font-mono text-xl font-bold text-primary amber-glow text-center">{overlayToShow.title}</h2>}
+            {overlayToShow.subtitle && <p className="font-mono text-sm text-foreground/80 text-center">{overlayToShow.subtitle}</p>}
           </div>
+          {!isPlaying && editingOverlay && (
+            <div className="absolute top-2 left-2 z-40 px-2 py-1 bg-accent/80 rounded text-[9px] font-mono text-accent-foreground">
+              OVERLAY PREVIEW
+            </div>
+          )}
         </div>
       )}
 
-      {activeNarrations.map((n) => {
+      {isPlaying && activeNarrations.map((n) => {
         if (!n.text) return null;
         const progress = Math.min(1, (currentTime - n.startTime) / Math.max(n.duration, 1));
         const fadeEnd = Math.max(0, 1 - (currentTime - n.startTime - n.duration + 500) / 500);
@@ -78,59 +97,68 @@ const Index: React.FC = () => {
       {/* Toolbar */}
       <Toolbar />
 
-      {/* Main editor area */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Left: Asset Library */}
-        {leftPanelOpen && (
-          <div className="w-52 flex-shrink-0 overflow-hidden">
-            <AssetLibrary />
-          </div>
-        )}
+      {/* Main content: vertical resizable between editor area and timeline */}
+      <ResizablePanelGroup direction="vertical" className="flex-1">
+        <ResizablePanel defaultSize={75} minSize={40}>
+          {/* Main editor area */}
+          <div className="flex h-full overflow-hidden relative">
+            {/* Left: Asset Library */}
+            {leftPanelOpen && (
+              <div className="w-52 flex-shrink-0 overflow-hidden">
+                <AssetLibrary />
+              </div>
+            )}
 
-        <button
-          onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-          title={leftPanelOpen ? 'Hide asset library' : 'Show asset library'}
-          className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
-            leftPanelOpen ? 'left-52 rounded-r-md border-l-0' : 'left-0 rounded-r-md'
-          }`}
-        >
-          {leftPanelOpen ? <PanelLeftClose size={14} className="mx-auto" /> : <PanelLeftOpen size={14} className="mx-auto" />}
-        </button>
-
-        {/* Center: Canvas + Overlays */}
-        <div className="flex-1 relative overflow-hidden">
-          <MapCanvas />
-          <NarrationOverlay />
-        </div>
-
-        {/* Right: Properties Panel */}
-        {rightPanelOpen && (
-          <div className="w-72 flex-shrink-0 overflow-hidden relative">
             <button
-              onClick={() => setRightPanelOpen(false)}
-              title="Hide properties panel"
-              className="absolute top-1/2 -translate-y-1/2 left-0 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md -translate-x-full"
+              onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+              title={leftPanelOpen ? 'Hide asset library' : 'Show asset library'}
+              className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
+                leftPanelOpen ? 'left-52 rounded-r-md border-l-0' : 'left-0 rounded-r-md'
+              }`}
             >
-              <PanelRightClose size={14} className="mx-auto" />
+              {leftPanelOpen ? <PanelLeftClose size={14} className="mx-auto" /> : <PanelLeftOpen size={14} className="mx-auto" />}
             </button>
-            <PropertiesPanel />
-          </div>
-        )}
-        {!rightPanelOpen && (
-          <button
-            onClick={() => setRightPanelOpen(true)}
-            title="Show properties panel"
-            className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
-          >
-            <PanelRightOpen size={14} className="mx-auto" />
-          </button>
-        )}
-      </div>
 
-      {/* Bottom: Timeline */}
-      <div className="h-44 flex-shrink-0">
-        <TimelinePanel />
-      </div>
+            {/* Center: Canvas + Overlays */}
+            <div className="flex-1 relative overflow-hidden">
+              <MapCanvas />
+              <NarrationOverlay />
+            </div>
+
+            {/* Right panel toggle */}
+            {!rightPanelOpen && (
+              <button
+                onClick={() => setRightPanelOpen(true)}
+                title="Show properties panel"
+                className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
+              >
+                <PanelRightOpen size={14} className="mx-auto" />
+              </button>
+            )}
+
+            {/* Right: Properties Panel */}
+            {rightPanelOpen && (
+              <div className="w-72 flex-shrink-0 overflow-hidden relative">
+                <button
+                  onClick={() => setRightPanelOpen(false)}
+                  title="Hide properties panel"
+                  className="absolute top-1/2 -translate-y-1/2 left-0 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md -translate-x-full"
+                >
+                  <PanelRightClose size={14} className="mx-auto" />
+                </button>
+                <PropertiesPanel />
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        {/* Bottom: Timeline - resizable */}
+        <ResizablePanel defaultSize={25} minSize={12} maxSize={50}>
+          <TimelinePanel />
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 };

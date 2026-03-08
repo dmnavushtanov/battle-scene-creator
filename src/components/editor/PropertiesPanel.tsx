@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { v4 as uuid } from 'uuid';
-import { Trash2, Users, ChevronRight, X } from 'lucide-react';
+import { Trash2, Users, ChevronRight, X, Plus, Minus } from 'lucide-react';
 import type { NarrationEvent, OverlayEvent, TextAnimation, OverlayTransition } from '@/domain/models';
 
 const formatTime = (ms: number) => {
@@ -50,12 +50,12 @@ const NarrationEditor: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[8px] font-mono text-muted-foreground">Start (ms)</label>
-            <input type="number" value={Math.round(narration.startTime)} onChange={(e) => update({ startTime: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
+            <label className="text-[8px] font-mono text-muted-foreground">Start (sec)</label>
+            <input type="number" step={0.1} value={+(narration.startTime / 1000).toFixed(1)} onChange={(e) => update({ startTime: Number(e.target.value) * 1000 })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
           </div>
           <div>
-            <label className="text-[8px] font-mono text-muted-foreground">Duration (ms)</label>
-            <input type="number" value={Math.round(narration.duration)} onChange={(e) => update({ duration: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
+            <label className="text-[8px] font-mono text-muted-foreground">Duration (sec)</label>
+            <input type="number" step={0.1} value={+(narration.duration / 1000).toFixed(1)} onChange={(e) => update({ duration: Number(e.target.value) * 1000 })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
           </div>
         </div>
         <div>
@@ -150,12 +150,12 @@ const OverlayEditor: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[8px] font-mono text-muted-foreground">Start (ms)</label>
-            <input type="number" value={Math.round(overlay.startTime)} onChange={(e) => update({ startTime: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
+            <label className="text-[8px] font-mono text-muted-foreground">Start (sec)</label>
+            <input type="number" step={0.1} value={+(overlay.startTime / 1000).toFixed(1)} onChange={(e) => update({ startTime: Number(e.target.value) * 1000 })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
           </div>
           <div>
-            <label className="text-[8px] font-mono text-muted-foreground">Duration (ms)</label>
-            <input type="number" value={Math.round(overlay.duration)} onChange={(e) => update({ duration: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
+            <label className="text-[8px] font-mono text-muted-foreground">Duration (sec)</label>
+            <input type="number" step={0.1} value={+(overlay.duration / 1000).toFixed(1)} onChange={(e) => update({ duration: Number(e.target.value) * 1000 })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
           </div>
         </div>
         <div>
@@ -220,6 +220,7 @@ const GroupSection: React.FC<{ selectedIds: string[] }> = ({ selectedIds }) => {
   const removeFromGroup = useEditorStore((s) => s.removeFromGroup);
   const addToGroup = useEditorStore((s) => s.addToGroup);
   const getGroupForObject = useEditorStore((s) => s.getGroupForObject);
+  const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
     return scene || s.project.scenes[0];
@@ -235,10 +236,18 @@ const GroupSection: React.FC<{ selectedIds: string[] }> = ({ selectedIds }) => {
     return selectedIds.every((id) => g.memberIds.includes(id));
   })();
 
+  const sameGroup = allInSameGroup ? getGroupForObject(selectedIds[0]) : null;
+
   const handleCreateGroup = () => {
     const name = groupName.trim() || `Group ${Object.keys(groups).length + 1}`;
     createGroup(name, selectedIds);
     setGroupName('');
+  };
+
+  const getObjectLabel = (objId: string) => {
+    const obj = activeScene.objectsById[objId];
+    if (!obj) return objId.slice(0, 6);
+    return obj.label || obj.unitType || obj.type;
   };
 
   return (
@@ -249,21 +258,61 @@ const GroupSection: React.FC<{ selectedIds: string[] }> = ({ selectedIds }) => {
 
       {/* Show existing group info for single selection */}
       {existingGroup && (
-        <div className="p-2 bg-muted/50 rounded border border-border space-y-1.5">
+        <div className="p-2 bg-muted/50 rounded border border-border space-y-2">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: existingGroup.color }} />
             <span className="text-[10px] font-mono font-semibold text-foreground">{existingGroup.name}</span>
             <span className="text-[8px] font-mono text-muted-foreground">{existingGroup.memberIds.length} members</span>
           </div>
+          {/* Members list */}
+          <div className="space-y-0.5">
+            <span className="text-[8px] font-mono text-muted-foreground uppercase">Members:</span>
+            {existingGroup.memberIds.map((mid) => (
+              <div key={mid} className="flex items-center gap-1.5 pl-1">
+                <span className={`text-[9px] font-mono ${mid === selectedIds[0] ? 'text-primary font-bold' : 'text-foreground'}`}>
+                  {getObjectLabel(mid)}
+                </span>
+                <button
+                  onClick={() => setSelectedIds([mid])}
+                  className="text-[8px] font-mono text-muted-foreground hover:text-primary transition-colors"
+                  title="Select this unit"
+                >
+                  ◎
+                </button>
+                <button
+                  onClick={() => removeFromGroup(existingGroup.id, [mid])}
+                  className="text-[8px] text-destructive/60 hover:text-destructive transition-colors ml-auto"
+                  title="Remove from group"
+                >
+                  <Minus size={8} />
+                </button>
+              </div>
+            ))}
+          </div>
           <div className="flex gap-1.5">
             <button onClick={() => selectGroup(existingGroup.id)} className="flex-1 py-1 text-[9px] font-mono uppercase bg-primary/10 text-primary border border-primary/30 rounded hover:bg-primary/20 transition-colors">
               Select All
             </button>
-            <button onClick={() => removeFromGroup(existingGroup.id, selectedIds)} className="flex-1 py-1 text-[9px] font-mono uppercase bg-muted text-muted-foreground border border-border rounded hover:bg-muted/80 transition-colors">
-              Remove
+            <button onClick={() => deleteGroup(existingGroup.id)} className="flex-1 py-1 text-[9px] font-mono uppercase bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors">
+              Ungroup
             </button>
-            <button onClick={() => deleteGroup(existingGroup.id)} className="py-1 px-2 text-[9px] font-mono text-destructive border border-destructive/30 rounded hover:bg-destructive/10 transition-colors">
-              <Trash2 size={9} />
+          </div>
+        </div>
+      )}
+
+      {/* Multi-select same group */}
+      {sameGroup && (
+        <div className="p-2 bg-muted/50 rounded border border-border space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: sameGroup.color }} />
+            <span className="text-[10px] font-mono font-semibold text-foreground">{sameGroup.name}</span>
+          </div>
+          <div className="flex gap-1.5">
+            <button onClick={() => selectGroup(sameGroup.id)} className="flex-1 py-1 text-[9px] font-mono uppercase bg-primary/10 text-primary border border-primary/30 rounded hover:bg-primary/20 transition-colors">
+              Select All
+            </button>
+            <button onClick={() => deleteGroup(sameGroup.id)} className="flex-1 py-1 text-[9px] font-mono uppercase bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors">
+              Ungroup
             </button>
           </div>
         </div>
@@ -296,7 +345,7 @@ const GroupSection: React.FC<{ selectedIds: string[] }> = ({ selectedIds }) => {
                 >
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} />
                   <span className="text-foreground">{g.name}</span>
-                  <ChevronRight size={8} className="ml-auto text-muted-foreground" />
+                  <Plus size={8} className="ml-auto text-muted-foreground" />
                 </button>
               ))}
             </div>
@@ -398,6 +447,13 @@ const PropertiesPanel: React.FC = () => {
           <span className="text-[9px] font-mono uppercase px-2 py-0.5 bg-primary/20 text-primary rounded">
             {single.unitType || single.type}
           </span>
+          {single.label && <span className="text-[9px] font-mono text-muted-foreground">{single.label}</span>}
+        </div>
+
+        {/* Label edit */}
+        <div>
+          <label className="text-[9px] font-mono uppercase text-muted-foreground">Label</label>
+          <input type="text" value={single.label || ''} onChange={(e) => updateObject(single.id, { label: e.target.value })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" placeholder="Unit label..." />
         </div>
 
         {/* Position */}
@@ -457,7 +513,7 @@ const PropertiesPanel: React.FC = () => {
                   <div key={eff.id} className="flex items-center gap-2 p-1.5 bg-muted/50 rounded border border-border text-[9px] font-mono">
                     <span>{preset?.icon || '?'}</span>
                     <span className="flex-1 text-foreground">{preset?.label || eff.type} @ {formatTime(eff.startTime)}</span>
-                    <span className="text-muted-foreground">{Math.round(eff.duration)}ms</span>
+                    <span className="text-muted-foreground">{(eff.duration / 1000).toFixed(1)}s</span>
                     <button onClick={() => removeEffect(single.id, eff.id)} className="text-destructive hover:text-destructive/80 transition-colors">
                       <Trash2 size={10} />
                     </button>
