@@ -1,6 +1,8 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
+import { exportVideo } from '@/domain/services/videoExport';
 import type { DrawToolType } from '@/domain/models';
+import Konva from 'konva';
 import {
   MousePointer2,
   MoveRight,
@@ -14,6 +16,7 @@ import {
   Film,
   CircleDot,
   StopCircle,
+  Loader2,
 } from 'lucide-react';
 
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
@@ -38,6 +41,10 @@ const Toolbar: React.FC = () => {
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
+  const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+
+  const [isExporting, setIsExporting] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState(0);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -71,6 +78,62 @@ const Toolbar: React.FC = () => {
       stopRecording();
     } else {
       startRecording();
+    }
+  };
+
+  const handleVideoExport = async () => {
+    const stageRef = (window as any).__konvaStageRef;
+    if (!stageRef?.current) return;
+
+    const stage = stageRef.current as Konva.Stage;
+    const scene = useEditorStore.getState().getActiveScene();
+
+    setIsExporting(true);
+    setExportProgress(0);
+
+    try {
+      const blob = await exportVideo({
+        stage,
+        duration: scene.duration,
+        fps: 30,
+        onProgress: setExportProgress,
+        computeFrame: (time: number) => {
+          computeDerivedTransforms(time);
+          // Force update objects to derived positions for the export
+          const state = useEditorStore.getState();
+          const transforms = state.derivedTransforms;
+          const sc = state.getActiveScene();
+          for (const id of sc.objectOrder) {
+            const t = transforms[id];
+            if (!t) continue;
+            // Find the Konva node and update it directly
+            const node = stage.findOne(`#unit-${id}`) as Konva.Group;
+            if (node) {
+              node.x(t.x);
+              node.y(t.y);
+              node.rotation(t.rotation);
+              node.scaleX(t.scaleX);
+              node.scaleY(t.scaleY);
+              node.visible(t.visible);
+            }
+          }
+        },
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${scene.name || 'battle'}-export.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Video export failed:', err);
+      alert('Video export failed. Your browser may not support WebM recording.');
+    } finally {
+      setIsExporting(false);
+      // Restore current time
+      const time = useEditorStore.getState().currentTime;
+      computeDerivedTransforms(time);
     }
   };
 
@@ -168,11 +231,13 @@ const Toolbar: React.FC = () => {
       </button>
 
       <button
-        title="Export video (coming soon)"
-        className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1 flex items-center gap-1.5 border border-border text-[10px] font-mono uppercase"
+        onClick={handleVideoExport}
+        disabled={isExporting}
+        title={isExporting ? `Exporting... ${exportProgress}%` : 'Export animation as WebM video'}
+        className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1 flex items-center gap-1.5 border border-border text-[10px] font-mono uppercase disabled:opacity-50"
       >
-        <Film size={14} />
-        Export
+        {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
+        {isExporting ? `${exportProgress}%` : 'Video'}
       </button>
     </div>
   );
