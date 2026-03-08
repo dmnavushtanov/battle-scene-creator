@@ -26,6 +26,12 @@ function createDefaultProject(): ProjectData {
   };
 }
 
+export interface CustomIcon {
+  id: string;
+  label: string;
+  dataUrl: string;
+}
+
 export interface EditorState {
   project: ProjectData;
   activeSceneId: string;
@@ -43,6 +49,8 @@ export interface EditorState {
   stagePosition: { x: number; y: number };
   // Derived transforms during playback/scrub (not persisted)
   derivedTransforms: Record<string, ObjectSnapshot>;
+  // Custom icons library
+  customIcons: CustomIcon[];
 
   // Scene helpers
   getActiveScene: () => Scene;
@@ -93,6 +101,10 @@ export interface EditorState {
   // Playback engine
   computeDerivedTransforms: (time: number) => void;
 
+  // Custom icons
+  addCustomIcon: (icon: CustomIcon) => void;
+  removeCustomIcon: (id: string) => void;
+
   // Import/Export
   exportProject: () => string;
   importProject: (json: string) => void;
@@ -115,6 +127,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     stageScale: 1,
     stagePosition: { x: 0, y: 0 },
     derivedTransforms: {},
+    customIcons: [],
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
@@ -346,6 +359,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }
       set({ derivedTransforms: transforms });
     },
+
+    addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
+    removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
 
     exportProject: () => serializeProject(get().project),
 

@@ -63,6 +63,10 @@ const MapCanvas: React.FC = () => {
 
   const lastDragPos = useRef<{ x: number; y: number } | null>(null);
 
+  // Manual pan state
+  const isPanning = useRef(false);
+  const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
+
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
     return scene || s.project.scenes[0];
@@ -142,6 +146,43 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
+  // Manual pan: start on mousedown on empty canvas (not on units)
+  const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    const target = e.target;
+    const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect' || target.attrs.id?.startsWith('grid-');
+    if (isEmptySpace && activeTool === 'select' && !isRecording) {
+      isPanning.current = true;
+      const stage = stageRef.current;
+      if (stage) {
+        const pointer = stage.getPointerPosition()!;
+        panStart.current = { x: pointer.x, y: pointer.y, stageX: stagePosition.x, stageY: stagePosition.y };
+        stage.container().style.cursor = 'grabbing';
+      }
+    }
+  };
+
+  const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (!isPanning.current || !panStart.current) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition()!;
+    const dx = pointer.x - panStart.current.x;
+    const dy = pointer.y - panStart.current.y;
+    setStagePosition({
+      x: panStart.current.stageX + dx,
+      y: panStart.current.stageY + dy,
+    });
+  };
+
+  const handleStageMouseUp = () => {
+    if (isPanning.current) {
+      isPanning.current = false;
+      panStart.current = null;
+      const stage = stageRef.current;
+      if (stage) stage.container().style.cursor = 'default';
+    }
+  };
+
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.target === e.target.getStage() || e.target.attrs.id === 'bg-rect') {
       setSelectedIds([]);
@@ -215,22 +256,21 @@ const MapCanvas: React.FC = () => {
         scaleY={stageScale}
         x={stagePosition.x}
         y={stagePosition.y}
-        draggable={activeTool === 'select' && !isRecording}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
-        onDragEnd={(e) => {
-          setStagePosition({ x: e.target.x(), y: e.target.y() });
-        }}
+        onMouseDown={handleStageMouseDown}
+        onMouseMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
       >
         <Layer>
-          <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" listening={false} />
+          <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" />
           {bgImage && <KImage image={bgImage} x={0} y={0} width={1920} height={1080} />}
           {Array.from({ length: 97 }, (_, i) => (
-            <Line key={`vg-${i}`} points={[i * 20, 0, i * 20, 1080]} stroke="#1a2332" strokeWidth={0.5} />
+            <Line key={`vg-${i}`} id={`grid-v-${i}`} points={[i * 20, 0, i * 20, 1080]} stroke="#1a2332" strokeWidth={0.5} listening={false} />
           ))}
           {Array.from({ length: 55 }, (_, i) => (
-            <Line key={`hg-${i}`} points={[0, i * 20, 1920, i * 20]} stroke="#1a2332" strokeWidth={0.5} />
+            <Line key={`hg-${i}`} id={`grid-h-${i}`} points={[0, i * 20, 1920, i * 20]} stroke="#1a2332" strokeWidth={0.5} listening={false} />
           ))}
         </Layer>
 

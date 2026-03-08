@@ -4,10 +4,11 @@ import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
-import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 const Index: React.FC = () => {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
@@ -28,10 +29,23 @@ const Index: React.FC = () => {
 
       {/* Main editor area */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left: Asset Library */}
-        <div className="w-52 flex-shrink-0">
-          <AssetLibrary />
-        </div>
+        {/* Left: Asset Library (collapsible) */}
+        {leftPanelOpen && (
+          <div className="w-52 flex-shrink-0">
+            <AssetLibrary />
+          </div>
+        )}
+
+        {/* Left edge collapse handle */}
+        <button
+          onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+          title={leftPanelOpen ? 'Hide asset library' : 'Show asset library'}
+          className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
+            leftPanelOpen ? 'left-52 rounded-r-md border-l-0' : 'left-0 rounded-r-md'
+          }`}
+        >
+          {leftPanelOpen ? <PanelLeftClose size={14} className="mx-auto" /> : <PanelLeftOpen size={14} className="mx-auto" />}
+        </button>
 
         {/* Center: Canvas */}
         <MapCanvas />
