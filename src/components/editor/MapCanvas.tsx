@@ -124,7 +124,7 @@ const MapCanvas: React.FC = () => {
         return;
       }
 
-      // Delete / Backspace — delete selected objects with confirmation
+      // Delete / Backspace — delete selected objects immediately
       if (e.key === 'Delete' || e.key === 'Backspace') {
         // Don't intercept if user is typing in an input/textarea
         const tag = (e.target as HTMLElement)?.tagName;
@@ -132,12 +132,9 @@ const MapCanvas: React.FC = () => {
         const sids = useEditorStore.getState().selectedIds;
         if (sids.length > 0) {
           e.preventDefault();
-          const label = sids.length === 1 ? 'this unit' : `these ${sids.length} units`;
-          if (window.confirm(`Delete ${label}? This will also remove their keyframes and effects.`)) {
-            const removeObject = useEditorStore.getState().removeObject;
-            sids.forEach((id) => removeObject(id));
-            useEditorStore.setState({ selectedIds: [] });
-          }
+          const removeObject = useEditorStore.getState().removeObject;
+          sids.forEach((id) => removeObject(id));
+          useEditorStore.setState({ selectedIds: [] });
         }
         return;
       }

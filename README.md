@@ -60,6 +60,24 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 | Fire | Layered flames + rising embers |
 | Gunshot | Muzzle flash + smoke puff |
 
+### Animated Arrows
+- **Animated Arrow tool**: Draw arrows that progressively grow during playback — the #1 visual element in battle map videos (Kings and Generals style)
+- Set start/end timing in properties panel
+- Color-coded per faction
+- Shows duration label on canvas in edit mode
+
+### On-Map Text Labels
+- **Text tool**: Click anywhere on the canvas to place text labels — city names, dates, battle names, casualty counts
+- Configurable font size, text color, and optional background color
+- Draggable and keyframeable like any other object
+- Perfect for annotating battle positions and key locations
+
+### Faction Colors
+- **8 preset faction colors**: Blue, Red, Green, Orange, Purple, Teal, Gold, White
+- Assign to any unit or animated arrow via the properties panel
+- Changes unit border/fill tint for instant visual distinction between sides
+- "None" option to revert to default amber
+
 ### Recording & Playback
 - **Clear recording UX**: "Record [n] sec for moved units" label, ⏺ Record / ⏹ Stop & Save buttons
 - Live status during recording: "🔴 Recording — drag units now (X moved) — at 2.0s → 4.0s on timeline"
@@ -86,6 +104,7 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 - Shift-click multiple units → create named, color-coded group
 - Right-click context menu to add/remove from groups
 - "Select All" to grab entire group — **drag moves all members together**, preserving formation
+- **Group recording**: Record mode captures keyframes for all selected group members simultaneously
 - Path drawing disabled for groups (single unit only) — clear message shown
 
 ### Copy & Paste
@@ -114,7 +133,7 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 | Multi-select | Shift + click |
 | Rectangle select | Left-click drag on empty canvas |
 | Deselect | Click empty canvas / Escape |
-| Delete selected | Delete / Backspace (with confirmation) |
+| Delete selected | Delete / Backspace |
 | Play / Pause | Space bar |
 | Copy | Ctrl+C |
 | Paste | Ctrl+V |
@@ -123,6 +142,16 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 | Path: add point | Left click (Path tool) |
 | Path: save | Right-click |
 | Path: cancel | Escape |
+
+### Toolbar Tools
+
+| Tool | Icon | Description |
+|---|---|---|
+| Select | Cursor | Select and move objects |
+| Arrow | → | Draw static arrows |
+| Anim Arrow | ↗ | Draw animated arrows that grow during playback |
+| Path | Route | Draw movement paths for units |
+| Text | T | Click to place text labels on the map |
 
 ### Export
 - Project JSON (versioned, with import migration)
@@ -136,7 +165,7 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 src/
 ├── domain/
 │   ├── models.ts           # TypeScript interfaces
-│   ├── constants.ts        # Unit symbols, colors, categories
+│   ├── constants.ts        # Unit symbols, colors, categories, faction colors
 │   ├── formatters.ts       # Time formatting
 │   └── services/
 │       ├── timeline.ts     # Keyframe interpolation
@@ -149,10 +178,10 @@ src/
 ├── pages/
 │   └── Index.tsx            # Start menu + main layout + file menu
 ├── components/editor/
-│   ├── MapCanvas.tsx        # Konva canvas, drag-drop, context menu, marquee select, Ctrl+C/V
-│   ├── Toolbar.tsx          # Tools, recording UX, tooltips
+│   ├── MapCanvas.tsx        # Konva canvas, drag-drop, context menu, marquee select, shortcuts
+│   ├── Toolbar.tsx          # Tools (select, arrow, anim arrow, path, text), recording UX
 │   ├── AssetLibrary.tsx     # Collapsible asset categories
-│   ├── PropertiesPanel.tsx  # Object properties, effects, keyframes
+│   ├── PropertiesPanel.tsx  # Object properties, effects, keyframes, faction colors
 │   ├── TimelinePanel.tsx    # Timeline tracks, shift-select keyframes, delete confirmation
 │   ├── UnitIcon.tsx         # Icon renderer
 │   ├── NarrationOverlay.tsx # HTML overlay for narration/sound playback
@@ -178,7 +207,11 @@ To add custom icons locally: place PNG files in `src/assets/icons/` and add an i
 
 ## Planned
 
-- Undo/redo
-- Multi-scene editing with transitions
-- More effects (rain, fog, projectiles)
-- Space to play/pause, Delete to remove
+- Undo/redo history stack
+- Camera pan/zoom keyframes for cinematic playback
+- Territory zone shading (colored polygons for faction control)
+- Animated dashed lines (supply routes, marching ants)
+- Unit strength/count labels with casualty animation
+- Easing curves for keyframe interpolation
+- Grid snapping for formation alignment
+- Duplicate scene for sequential battle phases
