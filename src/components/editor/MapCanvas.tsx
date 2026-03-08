@@ -450,6 +450,7 @@ const MapCanvas: React.FC = () => {
         y={stagePosition.y}
         onWheel={handleWheel}
         onClick={handleStageClick}
+        onDblClick={handleStageDblClick}
         onTap={handleStageClick}
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
