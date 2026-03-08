@@ -345,6 +345,23 @@ const MapCanvas: React.FC = () => {
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0 || isPanning.current) return;
 
+    // Text tool — click to place a text label
+    if (activeTool === 'text') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      const obj: MapObject = {
+        id: uuid(), type: 'map_text', label: 'Text',
+        x: coords.x, y: coords.y, rotation: 0, scaleX: 1, scaleY: 1,
+        layer: 'units', visible: true, locked: false,
+        text: 'City Name', fontSize: 20, fontColor: '#ffffff',
+      };
+      addObject(obj);
+      setSelectedIds([obj.id]);
+      setActiveTool('select');
+      return;
+    }
+
     // Left-click adds waypoint when in path mode
     if (activeTool === 'path') {
       const stage = stageRef.current;
