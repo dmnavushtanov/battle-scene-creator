@@ -45,6 +45,8 @@ const MapCanvas: React.FC = () => {
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
   const isDrawingPath = useRef(false);
+  const [selectionRect, setSelectionRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const isMarqueeSelecting = useRef(false);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
