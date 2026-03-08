@@ -19,7 +19,7 @@ export type OverlayTransition = 'fade' | 'slide' | 'none';
 
 export interface MapObject {
   id: string;
-  type: 'unit' | 'drawing' | 'effect';
+  type: 'unit' | 'drawing' | 'effect' | 'animated_arrow' | 'map_text';
   unitType?: UnitType;
   objectCategory?: ObjectCategory;
   label?: string;
@@ -37,7 +37,17 @@ export interface MapObject {
   width?: number;
   height?: number;
   color?: string;
-  effectType?: EffectType; // For standalone map effects
+  effectType?: EffectType;
+  // Faction color (applies to units, arrows, text)
+  factionColor?: string;
+  // Map text properties
+  text?: string;
+  fontSize?: number;
+  fontColor?: string;
+  bgColor?: string;
+  // Animated arrow timing
+  animStartTime?: number;
+  animEndTime?: number;
 }
 
 export interface Keyframe {
