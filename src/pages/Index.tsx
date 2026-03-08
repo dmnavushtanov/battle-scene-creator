@@ -1,157 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
+import NarrationOverlay from '@/components/editor/NarrationOverlay';
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
-import { useEditorStore } from '@/store/editorStore';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-
-const NarrationOverlay: React.FC = () => {
-  const activeNarrations = useEditorStore((s) => s.activeNarrations);
-  const activeOverlay = useEditorStore((s) => s.activeOverlay);
-  const isPlaying = useEditorStore((s) => s.isPlaying);
-  const currentTime = useEditorStore((s) => s.currentTime);
-  const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
-  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const soundRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
-
-  const activeScene = useEditorStore((s) => {
-    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
-    return scene || s.project.scenes[0];
-  });
-
-  const soundEvents = activeScene.soundEvents || [];
-
-  // Play narration audio during playback
-  useEffect(() => {
-    if (!isPlaying) {
-      audioRefs.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
-      return;
-    }
-    for (const n of activeNarrations) {
-      if (n.audioUrl) {
-        let audio = audioRefs.current.get(n.id);
-        if (!audio) {
-          audio = new Audio(n.audioUrl);
-          audioRefs.current.set(n.id, audio);
-        }
-        if (audio.paused) {
-          const offset = (currentTime - n.startTime) / 1000;
-          if (offset >= 0 && offset < n.duration / 1000) {
-            audio.currentTime = Math.max(0, offset);
-            audio.play().catch(() => {});
-          }
-        }
-      }
-    }
-    audioRefs.current.forEach((audio, id) => {
-      if (!activeNarrations.find((n) => n.id === id)) {
-        audio.pause();
-        audio.currentTime = 0;
-        audioRefs.current.delete(id);
-      }
-    });
-  }, [isPlaying, activeNarrations, currentTime]);
-
-  // Play sound events during playback
-  useEffect(() => {
-    if (!isPlaying) {
-      soundRefs.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
-      return;
-    }
-
-    for (const snd of soundEvents) {
-      const isActive = currentTime >= snd.startTime && currentTime <= snd.startTime + snd.duration;
-      let audio = soundRefs.current.get(snd.id);
-
-      if (isActive) {
-        if (!audio) {
-          audio = new Audio(snd.audioUrl);
-          audio.volume = snd.volume;
-          soundRefs.current.set(snd.id, audio);
-        }
-        if (audio.paused) {
-          const offset = (currentTime - snd.startTime) / 1000;
-          audio.currentTime = Math.max(0, offset);
-          audio.play().catch(() => {});
-        }
-      } else if (audio && !audio.paused) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    }
-
-    // Stop sounds that no longer exist
-    soundRefs.current.forEach((audio, id) => {
-      if (!soundEvents.find((s) => s.id === id)) {
-        audio.pause();
-        audio.currentTime = 0;
-        soundRefs.current.delete(id);
-      }
-    });
-  }, [isPlaying, soundEvents, currentTime]);
-
-  const editingOverlay = !isPlaying && selectedOverlayId
-    ? activeScene.overlayEvents.find((o) => o.id === selectedOverlayId) || null
-    : null;
-
-  const showPlaybackOverlay = isPlaying ? activeOverlay : null;
-  const overlayToShow = showPlaybackOverlay || editingOverlay;
-
-  if (!isPlaying && !editingOverlay && activeNarrations.length === 0) return null;
-
-  const positionMap: Record<string, React.CSSProperties> = {
-    top: { top: 40, left: '50%', transform: 'translateX(-50%)' },
-    bottom: { bottom: 60, left: '50%', transform: 'translateX(-50%)' },
-    center: { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' },
-  };
-
-  return (
-    <>
-      {overlayToShow && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-500">
-          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${overlayToShow.dimOpacity})`, backdropFilter: overlayToShow.backgroundEffect.includes('blur') ? 'blur(8px)' : undefined }} />
-          <div className="relative z-10 flex flex-col items-center gap-4 max-w-lg" style={{ alignSelf: overlayToShow.imagePosition === 'left' ? 'flex-start' : overlayToShow.imagePosition === 'right' ? 'flex-end' : 'center' }}>
-            {overlayToShow.imageUrl && (
-              <img src={overlayToShow.imageUrl} alt={overlayToShow.title || ''} className="rounded-lg border-2 border-primary/30 shadow-lg max-h-64 object-contain" style={{ transform: `scale(${overlayToShow.imageScale})` }} />
-            )}
-            {overlayToShow.title && <h2 className="font-mono text-xl font-bold text-primary amber-glow text-center">{overlayToShow.title}</h2>}
-            {overlayToShow.subtitle && <p className="font-mono text-sm text-foreground/80 text-center">{overlayToShow.subtitle}</p>}
-          </div>
-          {!isPlaying && editingOverlay && (
-            <div className="absolute top-2 left-2 z-40 px-2 py-1 bg-accent/80 rounded text-[9px] font-mono text-accent-foreground">
-              OVERLAY PREVIEW
-            </div>
-          )}
-        </div>
-      )}
-
-      {isPlaying && activeNarrations.map((n) => {
-        if (!n.text) return null;
-        const progress = Math.min(1, (currentTime - n.startTime) / Math.max(n.duration, 1));
-        const fadeEnd = Math.max(0, 1 - (currentTime - n.startTime - n.duration + 500) / 500);
-        let opacity = 1;
-        if (n.textAnimation === 'fade') {
-          const fadeIn = Math.min(1, (currentTime - n.startTime) / 300);
-          opacity = Math.min(fadeIn, fadeEnd);
-        }
-        const posStyle = n.position === 'custom'
-          ? { left: n.customX || 100, top: n.customY || 100 }
-          : positionMap[n.position] || positionMap.bottom;
-
-        return (
-          <div key={n.id} className="absolute z-40 pointer-events-none max-w-2xl px-6 py-3 rounded-lg" style={{ ...posStyle, opacity, backgroundColor: n.bgOpacity > 0 ? `rgba(0,0,0,${n.bgOpacity})` : undefined }}>
-            <p className="font-mono text-center whitespace-pre-wrap" style={{ fontSize: n.fontSize, fontWeight: n.fontStyle === 'bold' ? 700 : 400, fontStyle: n.fontStyle === 'italic' ? 'italic' : 'normal', color: n.textColor }}>
-              {n.textAnimation === 'typewriter' ? n.text.slice(0, Math.floor(n.text.length * progress)) : n.text}
-            </p>
-          </div>
-        );
-      })}
-    </>
-  );
-};
+import { useState } from 'react';
 
 const Index: React.FC = () => {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -167,15 +23,11 @@ const Index: React.FC = () => {
         </div>
       </div>
 
-      {/* Toolbar */}
       <Toolbar />
 
-      {/* Main content: vertical resizable between editor area and timeline */}
       <ResizablePanelGroup direction="vertical" className="flex-1">
         <ResizablePanel defaultSize={75} minSize={40}>
-          {/* Main editor area */}
           <div className="flex h-full relative">
-            {/* Left: Asset Library */}
             {leftPanelOpen && (
               <div className="w-52 flex-shrink-0 overflow-y-auto">
                 <AssetLibrary />
@@ -192,13 +44,11 @@ const Index: React.FC = () => {
               {leftPanelOpen ? <PanelLeftClose size={14} className="mx-auto" /> : <PanelLeftOpen size={14} className="mx-auto" />}
             </button>
 
-            {/* Center: Canvas + Overlays */}
             <div className="flex-1 relative overflow-hidden">
               <MapCanvas />
               <NarrationOverlay />
             </div>
 
-            {/* Right panel collapse button */}
             <button
               onClick={() => setRightPanelOpen(!rightPanelOpen)}
               title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
@@ -209,7 +59,6 @@ const Index: React.FC = () => {
               {rightPanelOpen ? <PanelRightClose size={14} className="mx-auto" /> : <PanelRightOpen size={14} className="mx-auto" />}
             </button>
 
-            {/* Right: Properties Panel */}
             {rightPanelOpen && (
               <div className="w-72 flex-shrink-0 overflow-y-auto">
                 <PropertiesPanel />
@@ -220,7 +69,6 @@ const Index: React.FC = () => {
 
         <ResizableHandle withHandle />
 
-        {/* Bottom: Timeline - resizable */}
         <ResizablePanel defaultSize={25} minSize={12} maxSize={50}>
           <TimelinePanel />
         </ResizablePanel>
