@@ -68,6 +68,7 @@ const MapCanvas: React.FC = () => {
   const addToGroup = useEditorStore((s) => s.addToGroup);
   const batchAddKeyframes = useEditorStore((s) => s.batchAddKeyframes);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
+  const setActiveTool = useEditorStore((s) => s.setActiveTool);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
@@ -98,6 +99,26 @@ const MapCanvas: React.FC = () => {
     return () => window.removeEventListener('click', handler);
   }, []);
 
+  // Global Escape key handler: cancel path drawing or deselect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+
+      // If drawing a path, cancel it
+      if (isDrawingPath.current || pathPoints.length > 0) {
+        setPathPoints([]);
+        isDrawingPath.current = false;
+        setActiveTool('select');
+        return;
+      }
+
+      // Otherwise deselect everything
+      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pathPoints.length, setActiveTool]);
+
   const handleWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
@@ -122,6 +143,49 @@ const MapCanvas: React.FC = () => {
     x: (pointer.x - stagePosition.x) / stageScale,
     y: (pointer.y - stagePosition.y) / stageScale,
   });
+
+  /** Save the current path as keyframes for the selected unit */
+  const finalizePath = () => {
+    if (pathPoints.length < 2) {
+      setPathPoints([]);
+      isDrawingPath.current = false;
+      setActiveTool('select');
+      return;
+    }
+
+    const sids = useEditorStore.getState().selectedIds;
+    if (sids.length !== 1) {
+      setPathPoints([]);
+      isDrawingPath.current = false;
+      setActiveTool('select');
+      return;
+    }
+
+    const unitId = sids[0];
+    const ct = useEditorStore.getState().currentTime;
+    const durMs = recordDurationSeconds * 1000;
+    const obj = activeScene.objectsById[unitId];
+
+    const keyframes = pathPoints.map((pt, i) => ({
+      time: ct + (i / (pathPoints.length - 1)) * durMs,
+      x: pt.x,
+      y: pt.y,
+      rotation: obj?.rotation || 0,
+      scaleX: obj?.scaleX || 1,
+      scaleY: obj?.scaleY || 1,
+      visible: obj?.visible ?? true,
+    }));
+    batchAddKeyframes(unitId, keyframes);
+
+    const endTime = ct + durMs;
+    if (endTime > activeScene.duration) {
+      useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
+    }
+
+    setPathPoints([]);
+    isDrawingPath.current = false;
+    setActiveTool('select');
+  };
 
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
@@ -185,53 +249,36 @@ const MapCanvas: React.FC = () => {
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0 || isPanning.current) return;
 
+    // Left-click adds waypoint when in path mode
     if (activeTool === 'path') {
       const stage = stageRef.current;
       if (!stage) return;
+
+      // Must have exactly 1 unit selected
+      const sids = useEditorStore.getState().selectedIds;
+      if (sids.length !== 1) return;
+
       const coords = getStageCoords(stage.getPointerPosition()!);
       isDrawingPath.current = true;
       setPathPoints((prev) => [...prev, coords]);
       return;
     }
 
+    // Click on empty space deselects
     const target = e.target;
     const stage = stageRef.current;
     if (target === stage || target.attrs?.id === 'bg-rect') {
-      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null });
+      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
       setContextMenu(null);
     }
   };
 
-  const handleStageDblClick = () => {
-    if (activeTool !== 'path' || pathPoints.length < 2) return;
-    const sids = useEditorStore.getState().selectedIds;
-    if (sids.length !== 1) {
-      setPathPoints([]);
-      isDrawingPath.current = false;
-      return;
+  // Right-click on stage: finalize path if drawing, otherwise native context menu suppressed
+  const handleStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.evt.preventDefault();
+    if (activeTool === 'path' && pathPoints.length >= 2) {
+      finalizePath();
     }
-    const unitId = sids[0];
-    const ct = useEditorStore.getState().currentTime;
-    const durMs = recordDurationSeconds * 1000;
-    const obj = activeScene.objectsById[unitId];
-
-    const keyframes = pathPoints.map((pt, i) => ({
-      time: ct + (i / (pathPoints.length - 1)) * durMs,
-      x: pt.x,
-      y: pt.y,
-      rotation: obj?.rotation || 0,
-      scaleX: obj?.scaleX || 1,
-      scaleY: obj?.scaleY || 1,
-      visible: obj?.visible ?? true,
-    }));
-    batchAddKeyframes(unitId, keyframes);
-
-    const endTime = ct + durMs;
-    if (endTime > activeScene.duration) {
-      useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
-    }
-    setPathPoints([]);
-    isDrawingPath.current = false;
   };
 
   const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
@@ -268,7 +315,6 @@ const MapCanvas: React.FC = () => {
     const stageX = (e.clientX - rect.left - stagePosition.x) / stageScale;
     const stageY = (e.clientY - rect.top - stagePosition.y) / stageScale;
 
-    // Unit drops
     const unitData = e.dataTransfer.getData('application/unit-type');
     if (unitData) {
       const obj: MapObject = {
@@ -284,7 +330,6 @@ const MapCanvas: React.FC = () => {
       return;
     }
 
-    // Effect drops
     const effectData = e.dataTransfer.getData('application/effect-preset');
     if (!effectData) return;
     const presetIndex = parseInt(effectData, 10);
@@ -319,6 +364,13 @@ const MapCanvas: React.FC = () => {
   const handleObjectContextMenu = (id: string, e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
     e.cancelBubble = true;
+
+    // If we're drawing a path, right-click saves it instead of showing menu
+    if (activeTool === 'path' && pathPoints.length >= 2) {
+      finalizePath();
+      return;
+    }
+
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -330,6 +382,15 @@ const MapCanvas: React.FC = () => {
       if (group.memberIds.includes(objId)) return group;
     }
     return null;
+  };
+
+  /** Start drawing a path for a specific unit via context menu */
+  const startPathForUnit = (unitId: string) => {
+    setSelectedIds([unitId]);
+    setActiveTool('path');
+    setPathPoints([]);
+    isDrawingPath.current = false;
+    setContextMenu(null);
   };
 
   // Highlighted group members
@@ -347,6 +408,19 @@ const MapCanvas: React.FC = () => {
   const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
   const customIconImages = useCustomIconCache(customIconSources);
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
+
+  // Status bar text for path drawing
+  const getPathStatusText = () => {
+    if (activeTool !== 'path') return null;
+    const sids = useEditorStore.getState().selectedIds;
+    if (sids.length !== 1) return 'Select exactly 1 unit to draw a path';
+    const unit = objectsById[sids[0]];
+    const unitName = unit?.label || unit?.unitType || 'Unit';
+    if (pathPoints.length === 0) {
+      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel`;
+    }
+    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel`;
+  };
 
   return (
     <div
@@ -367,12 +441,11 @@ const MapCanvas: React.FC = () => {
         </div>
       )}
 
+      {/* Path drawing status bar */}
       {activeTool === 'path' && (
         <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-accent/20 border border-accent/50 rounded text-[10px] font-mono text-accent flex items-center gap-2">
           <Route size={12} />
-          {pathPoints.length === 0
-            ? 'Select a unit, then click to add waypoints. Double-click to finish.'
-            : `${pathPoints.length} waypoints — double-click to apply as keyframes`}
+          {getPathStatusText()}
         </div>
       )}
 
@@ -386,8 +459,8 @@ const MapCanvas: React.FC = () => {
         y={stagePosition.y}
         onWheel={handleWheel}
         onClick={handleStageClick}
-        onDblClick={handleStageDblClick}
         onTap={handleStageClick}
+        onContextMenu={handleStageContextMenu}
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
@@ -516,7 +589,7 @@ const MapCanvas: React.FC = () => {
                   </>
                 )}
 
-                {/* Standalone effect placeholder (hidden during playback) */}
+                {/* Standalone effect placeholder */}
                 {isStandaloneEffect && !isPlaying && (
                   <>
                     <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
@@ -531,7 +604,7 @@ const MapCanvas: React.FC = () => {
                   <Circle x={0} y={0} radius={size * 0.4} fill="transparent" listening={false} />
                 )}
 
-                {/* Effect overlays — extracted components */}
+                {/* Effect overlays */}
                 <CrackEffect size={size} effects={unitEffects} />
                 <BloodEffect size={size} effects={unitEffects} />
                 <ExplosionEffect size={size} effects={unitEffects} />
@@ -547,6 +620,16 @@ const MapCanvas: React.FC = () => {
       {/* Context menu */}
       {contextMenu && (
         <div className="absolute z-50 bg-panel border border-border rounded shadow-lg py-1 min-w-[160px]" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
+          {/* Draw Path option — only for units */}
+          {objectsById[contextMenu.objectId]?.type === 'unit' && (
+            <>
+              <button onClick={() => startPathForUnit(contextMenu.objectId)}
+                className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
+                <Route size={10} /> Draw Path
+              </button>
+              <div className="h-px bg-border my-1" />
+            </>
+          )}
           {Object.values(groups).length > 0 && (
             <>
               <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground">Add to Group</div>

@@ -19,7 +19,7 @@ import {
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
   { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select' },
   { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow' },
-  { tool: 'path', icon: <Route size={16} />, label: 'Path (click waypoints, double-click to finish)' },
+  { tool: 'path', icon: <Route size={16} />, label: 'Path (click waypoints, right-click to save, Esc to cancel)' },
 ];
 
 const Toolbar: React.FC = () => {
