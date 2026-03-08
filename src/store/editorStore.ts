@@ -83,6 +83,7 @@ export interface EditorState {
 
   // Keyframes
   addKeyframeAtTime: (objectId: string, time: number) => void;
+  batchAddKeyframes: (objectId: string, keyframes: Keyframe[]) => void;
   clearKeyframes: (objectId: string) => void;
   clearAllKeyframes: () => void;
 
@@ -263,6 +264,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
           [objectId]: upsertKeyframe(s.keyframesByObjectId[objectId] || [], kf),
         },
       }));
+    },
+
+    batchAddKeyframes: (objectId, keyframes) => {
+      get()._updateActiveScene((s) => {
+        let existing = s.keyframesByObjectId[objectId] || [];
+        for (const kf of keyframes) {
+          existing = upsertKeyframe(existing, kf);
+        }
+        return {
+          ...s,
+          keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: existing },
+        };
+      });
     },
 
     clearKeyframes: (objectId) => {

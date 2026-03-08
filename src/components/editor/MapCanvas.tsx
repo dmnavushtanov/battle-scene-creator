@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store/editorStore';
 import type { ActiveEffect, EffectType, MapObject } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { v4 as uuid } from 'uuid';
+import { Route } from 'lucide-react';
 
 const UNIT_SYMBOLS: Record<string, string> = {
   infantry: '⚔', cavalry: '🐎', armor: '⬣', artillery: '💣',
@@ -71,6 +72,9 @@ const MapCanvas: React.FC = () => {
   // Arrow drawing state
   const isDrawingArrow = useRef(false);
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  // Path drawing state
+  const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
+  const isDrawingPath = useRef(false);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -97,6 +101,8 @@ const MapCanvas: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);
   const addEffect = useEditorStore((s) => s.addEffect);
   const addToGroup = useEditorStore((s) => s.addToGroup);
+  const batchAddKeyframes = useEditorStore((s) => s.batchAddKeyframes);
+  const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
@@ -148,7 +154,7 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
-  // Middle-button panning + left-button arrow drawing
+  // Middle-button panning + left-button arrow drawing + path drawing
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
       e.evt.preventDefault();
@@ -228,16 +234,27 @@ const MapCanvas: React.FC = () => {
     }
   };
 
-  // Left-click on empty space = deselect everything
+  // Left-click on empty space = deselect everything OR path waypoint
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0) return;
     if (isPanning.current) return;
+
+    // Path drawing: add waypoint on single click
+    if (activeTool === 'path') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const sx = (pointer.x - stagePosition.x) / stageScale;
+      const sy = (pointer.y - stagePosition.y) / stageScale;
+      isDrawingPath.current = true;
+      setPathPoints((prev) => [...prev, { x: sx, y: sy }]);
+      return;
+    }
+
     const target = e.target;
     const stage = stageRef.current;
-    // Click hit the Stage itself, the bg rect, or passed through non-listening grid lines
     const isEmptySpace = target === stage || target.attrs?.id === 'bg-rect';
     if (isEmptySpace) {
-      // Clear ALL selections: units, narrations, overlays
       useEditorStore.setState({
         selectedIds: [],
         selectedNarrationId: null,
@@ -245,6 +262,47 @@ const MapCanvas: React.FC = () => {
       });
       setContextMenu(null);
     }
+  };
+
+  // Double-click to finalize path
+  const handleStageDblClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (activeTool !== 'path' || pathPoints.length < 2) return;
+    const sids = useEditorStore.getState().selectedIds;
+    if (sids.length !== 1) {
+      // No single unit selected — just clear path
+      setPathPoints([]);
+      isDrawingPath.current = false;
+      return;
+    }
+    const unitId = sids[0];
+    const ct = useEditorStore.getState().currentTime;
+    const durMs = recordDurationSeconds * 1000;
+
+    // Convert path points to evenly-spaced keyframes
+    const keyframes: import('@/domain/models').Keyframe[] = pathPoints.map((pt, i) => {
+      const t = ct + (i / (pathPoints.length - 1)) * durMs;
+      const obj = activeScene.objectsById[unitId];
+      return {
+        time: t,
+        x: pt.x,
+        y: pt.y,
+        rotation: obj?.rotation || 0,
+        scaleX: obj?.scaleX || 1,
+        scaleY: obj?.scaleY || 1,
+        visible: obj?.visible ?? true,
+      };
+    });
+
+    batchAddKeyframes(unitId, keyframes);
+
+    // Auto-extend scene duration if needed
+    const endTime = ct + durMs;
+    if (endTime > activeScene.duration) {
+      useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
+    }
+
+    setPathPoints([]);
+    isDrawingPath.current = false;
   };
 
   const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
@@ -383,6 +441,15 @@ const MapCanvas: React.FC = () => {
         </div>
       )}
 
+      {activeTool === 'path' && (
+        <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-accent/20 border border-accent/50 rounded text-[10px] font-mono text-accent flex items-center gap-2">
+          <Route size={12} />
+          {pathPoints.length === 0
+            ? 'Select a unit, then click to add waypoints. Double-click to finish.'
+            : `${pathPoints.length} waypoints — double-click to apply as keyframes`}
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={dims.width}
@@ -393,6 +460,7 @@ const MapCanvas: React.FC = () => {
         y={stagePosition.y}
         onWheel={handleWheel}
         onClick={handleStageClick}
+        onDblClick={handleStageDblClick}
         onTap={handleStageClick}
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
@@ -433,6 +501,22 @@ const MapCanvas: React.FC = () => {
               opacity={0.6}
               listening={false}
             />
+          )}
+          {/* Path drawing preview */}
+          {pathPoints.length > 0 && (
+            <>
+              <Line
+                points={pathPoints.flatMap((p) => [p.x, p.y])}
+                stroke="#00bcd4"
+                strokeWidth={2}
+                dash={[6, 4]}
+                opacity={0.8}
+                listening={false}
+              />
+              {pathPoints.map((p, i) => (
+                <Circle key={`pp-${i}`} x={p.x} y={p.y} radius={4} fill="#00bcd4" stroke="#fff" strokeWidth={1} opacity={0.9} listening={false} />
+              ))}
+            </>
           )}
         </Layer>
 
