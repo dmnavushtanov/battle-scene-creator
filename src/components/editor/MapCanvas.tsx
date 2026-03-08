@@ -440,6 +440,15 @@ const MapCanvas: React.FC = () => {
         </div>
       )}
 
+      {activeTool === 'path' && (
+        <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-accent/20 border border-accent/50 rounded text-[10px] font-mono text-accent flex items-center gap-2">
+          <Route size={12} />
+          {pathPoints.length === 0
+            ? 'Select a unit, then click to add waypoints. Double-click to finish.'
+            : `${pathPoints.length} waypoints — double-click to apply as keyframes`}
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={dims.width}
