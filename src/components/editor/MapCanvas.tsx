@@ -637,11 +637,9 @@ const MapCanvas: React.FC = () => {
                   <>
                     <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${UNIT_COLOR}44`} stroke={UNIT_COLOR} strokeWidth={2} cornerRadius={4} />
                     {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
-                    {!customIconImage && (
-                      <>
-                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_SYMBOLS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.4} align="center" fill={UNIT_COLOR} />
-                        <Text x={-size / 2} y={size / 2 - 14} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={9} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={UNIT_COLOR} align="center" />
-                      </>
+                    {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
+                    {!customIconImage && !builtInIconImage && (
+                      <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={UNIT_COLOR} />
                     )}
                     <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
                     {group && (
