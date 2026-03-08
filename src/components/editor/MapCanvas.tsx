@@ -153,7 +153,7 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
-  // Middle-button panning + left-button arrow drawing
+  // Middle-button panning + left-button arrow drawing + path drawing
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
       e.evt.preventDefault();
