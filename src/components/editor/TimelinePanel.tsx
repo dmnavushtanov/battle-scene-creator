@@ -19,6 +19,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
