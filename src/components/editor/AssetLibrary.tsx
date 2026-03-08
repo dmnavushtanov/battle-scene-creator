@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
 import type { UnitType, MapObject } from '@/domain/models';
-import { ImageIcon, Trash2, Sparkles } from 'lucide-react';
+import { ImageIcon, Trash2, Sparkles, GripVertical } from 'lucide-react';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 
 const MAX_ICON_KB = 200;
@@ -46,20 +46,10 @@ const AssetLibrary: React.FC = () => {
 
   const handleAddUnit = (unitType: UnitType) => {
     const obj: MapObject = {
-      id: uuid(),
-      type: 'unit',
-      unitType,
-      label: unitType,
-      x: 400 + Math.random() * 200,
-      y: 300 + Math.random() * 200,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      layer: 'units',
-      visible: true,
-      locked: false,
-      width: ICON_RENDER_SIZE,
-      height: ICON_RENDER_SIZE,
+      id: uuid(), type: 'unit', unitType, label: unitType,
+      x: 400 + Math.random() * 200, y: 300 + Math.random() * 200,
+      rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
+      visible: true, locked: false, width: ICON_RENDER_SIZE, height: ICON_RENDER_SIZE,
     };
     addObject(obj);
     setActiveTool('select');
@@ -68,21 +58,10 @@ const AssetLibrary: React.FC = () => {
 
   const handleAddCustomUnit = (iconDataUrl: string, label: string) => {
     const obj: MapObject = {
-      id: uuid(),
-      type: 'unit',
-      unitType: 'infantry',
-      label,
-      customIcon: iconDataUrl,
-      x: 400 + Math.random() * 200,
-      y: 300 + Math.random() * 200,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      layer: 'units',
-      visible: true,
-      locked: false,
-      width: ICON_RENDER_SIZE,
-      height: ICON_RENDER_SIZE,
+      id: uuid(), type: 'unit', unitType: 'infantry', label, customIcon: iconDataUrl,
+      x: 400 + Math.random() * 200, y: 300 + Math.random() * 200,
+      rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
+      visible: true, locked: false, width: ICON_RENDER_SIZE, height: ICON_RENDER_SIZE,
     };
     addObject(obj);
     setActiveTool('select');
@@ -125,97 +104,57 @@ const AssetLibrary: React.FC = () => {
     }
   };
 
+  const handleEffectDragStart = (e: React.DragEvent, presetIndex: number) => {
+    e.dataTransfer.setData('application/effect-preset', String(presetIndex));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
   return (
     <div className="h-full flex flex-col bg-panel border-r border-border">
       <div className="px-3 py-3 border-b border-border">
-        <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-primary amber-glow">
-          Assets
-        </h2>
+        <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-primary amber-glow">Assets</h2>
       </div>
 
       {/* Tab bar */}
       <div className="flex border-b border-border">
-        <button
-          onClick={() => setActiveTab('units')}
-          className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors ${
-            activeTab === 'units'
-              ? 'text-primary border-b-2 border-primary bg-primary/5'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
+        <button onClick={() => setActiveTab('units')} className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors ${activeTab === 'units' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground'}`}>
           Units
         </button>
-        <button
-          onClick={() => setActiveTab('effects')}
-          className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${
-            activeTab === 'effects'
-              ? 'text-primary border-b-2 border-primary bg-primary/5'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Sparkles size={10} />
-          Effects
+        <button onClick={() => setActiveTab('effects')} className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${activeTab === 'effects' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Sparkles size={10} /> Effects
         </button>
       </div>
 
       {activeTab === 'units' && (
         <>
-          {/* Map Upload */}
           <div className="px-3 py-3 border-b border-border">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-              Background Map
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors"
-            >
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Background Map</p>
+            <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors">
               Upload Map Image
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
           </div>
-
-          {/* Unit Types */}
           <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-              Units
-            </p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Units</p>
             <div className="grid grid-cols-2 gap-2">
               {UNIT_TYPES.map((u) => (
-                <button
-                  key={u.type}
-                  onClick={() => handleAddUnit(u.type)}
-                  className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group"
-                >
+                <button key={u.type} onClick={() => handleAddUnit(u.type)} className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group">
                   <UnitIcon unitType={u.type} size={32} />
-                  <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground">
-                    {u.label}
-                  </span>
+                  <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground">{u.label}</span>
                 </button>
               ))}
             </div>
-
-            {/* My Icons */}
             {customIcons.length > 0 && (
               <div className="mt-4 pt-3 border-t border-border">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-                  My Icons
-                </p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">My Icons</p>
                 <div className="grid grid-cols-2 gap-2">
                   {customIcons.map((icon) => (
                     <div key={icon.id} className="relative group">
-                      <button
-                        onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)}
-                        className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                      >
+                      <button onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)} className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors">
                         <img src={icon.dataUrl} alt={icon.label} className="w-8 h-8 object-contain" />
-                        <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">
-                          {icon.label}
-                        </span>
+                        <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">{icon.label}</span>
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeCustomIcon(icon.id); }}
-                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); removeCustomIcon(icon.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 size={8} />
                       </button>
                     </div>
@@ -223,22 +162,12 @@ const AssetLibrary: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* Custom Icon Upload */}
             <div className="mt-4 pt-3 border-t border-border">
-              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-                Custom Icon
-              </p>
-              <button
-                onClick={() => iconInputRef.current?.click()}
-                className="w-full py-2.5 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
-              >
-                <ImageIcon size={14} />
-                Upload Icon (max {MAX_ICON_KB}KB)
+              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Custom Icon</p>
+              <button onClick={() => iconInputRef.current?.click()} className="w-full py-2.5 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2">
+                <ImageIcon size={14} /> Upload Icon (max {MAX_ICON_KB}KB)
               </button>
-              <p className="text-[8px] font-mono text-muted-foreground/60 mt-1.5 text-center">
-                Auto-resized to {ICON_RENDER_SIZE}×{ICON_RENDER_SIZE}px
-              </p>
+              <p className="text-[8px] font-mono text-muted-foreground/60 mt-1.5 text-center">Auto-resized to {ICON_RENDER_SIZE}×{ICON_RENDER_SIZE}px</p>
               <input ref={iconInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleIconUpload} className="hidden" />
             </div>
           </div>
@@ -250,28 +179,25 @@ const AssetLibrary: React.FC = () => {
           <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
             Effect Presets
           </p>
-          {selectedIds.length === 0 && (
-            <p className="text-[9px] font-mono text-muted-foreground/60 mb-3 italic">
-              Select a unit first, then click an effect to apply at current time
-            </p>
-          )}
+          <p className="text-[9px] font-mono text-muted-foreground/60 mb-3">
+            {selectedIds.length === 0
+              ? '🎯 Drag an effect onto the map to place it, or select a unit first'
+              : `✅ Click to apply to ${selectedIds.length} selected unit(s) · or drag onto map`}
+          </p>
           <div className="space-y-1.5">
             {EFFECT_PRESETS.map((preset, idx) => (
               <button
                 key={preset.type}
                 onClick={() => handleAddEffectPreset(idx)}
-                disabled={selectedIds.length === 0}
-                className="w-full flex items-center gap-3 p-2.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed group"
+                draggable
+                onDragStart={(e) => handleEffectDragStart(e, idx)}
+                className="w-full flex items-center gap-3 p-2.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
               >
+                <GripVertical size={10} className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                 <span className="text-lg">{preset.icon}</span>
                 <div className="text-left flex-1">
-                  <p className="text-[10px] font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {preset.label}
-                  </p>
-                  <p className="text-[8px] font-mono text-muted-foreground">
-                    {preset.description} · {preset.defaultDuration}ms
-                    {preset.persistent && ' · persistent'}
-                  </p>
+                  <p className="text-[10px] font-mono font-semibold text-foreground group-hover:text-primary transition-colors">{preset.label}</p>
+                  <p className="text-[8px] font-mono text-muted-foreground">{preset.description} · {preset.defaultDuration}ms{preset.persistent && ' · persistent'}</p>
                 </div>
               </button>
             ))}

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
-import type { MapObject, Scene, Keyframe, ProjectData, DrawToolType, LayerType, ObjectSnapshot, UnitEffect, NarrationEvent, OverlayEvent, ActiveEffect } from '@/domain/models';
+import type { MapObject, Scene, Keyframe, ProjectData, DrawToolType, LayerType, ObjectSnapshot, UnitEffect, NarrationEvent, OverlayEvent, ActiveEffect, UnitGroup } from '@/domain/models';
 import { evaluateObjectAtTime, upsertKeyframe, evaluateEffectsAtTime } from '@/domain/services/timeline';
 import { createRecordingSession, captureInitialSnapshot, finalizeRecording, type RecordingSession } from '@/domain/services/recording';
 import { exportProject as serializeProject, importProject as deserializeProject } from '@/domain/services/serialization';
+
+const GROUP_COLORS = ['#00bcd4', '#e91e63', '#4caf50', '#ff9800', '#9c27b0', '#2196f3', '#ff5722', '#009688'];
 
 function createDefaultScene(): Scene {
   return {
@@ -16,6 +18,7 @@ function createDefaultScene(): Scene {
     effectsByObjectId: {},
     narrationEvents: [],
     overlayEvents: [],
+    groups: {},
   };
 }
 
@@ -53,6 +56,8 @@ export interface EditorState {
   activeNarrations: NarrationEvent[];
   activeOverlay: OverlayEvent | null;
   customIcons: CustomIcon[];
+  selectedNarrationId: string | null;
+  selectedOverlayId: string | null;
 
   // Scene helpers
   getActiveScene: () => Scene;
@@ -85,16 +90,28 @@ export interface EditorState {
   addEffect: (objectId: string, effect: UnitEffect) => void;
   removeEffect: (objectId: string, effectId: string) => void;
   clearEffects: (objectId: string) => void;
+  updateEffect: (objectId: string, effectId: string, updates: Partial<UnitEffect>) => void;
 
   // Narration
   addNarration: (event: NarrationEvent) => void;
   updateNarration: (id: string, updates: Partial<NarrationEvent>) => void;
   removeNarration: (id: string) => void;
+  setSelectedNarrationId: (id: string | null) => void;
 
   // Overlays
   addOverlay: (event: OverlayEvent) => void;
   updateOverlay: (id: string, updates: Partial<OverlayEvent>) => void;
   removeOverlay: (id: string) => void;
+  setSelectedOverlayId: (id: string | null) => void;
+
+  // Groups
+  createGroup: (name: string, memberIds: string[]) => void;
+  renameGroup: (groupId: string, name: string) => void;
+  deleteGroup: (groupId: string) => void;
+  addToGroup: (groupId: string, objectIds: string[]) => void;
+  removeFromGroup: (groupId: string, objectIds: string[]) => void;
+  getGroupForObject: (objectId: string) => UnitGroup | null;
+  selectGroup: (groupId: string) => void;
 
   // Recording
   setRecordDurationSeconds: (dur: number) => void;
@@ -146,6 +163,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeNarrations: [],
     activeOverlay: null,
     customIcons: [],
+    selectedNarrationId: null,
+    selectedOverlayId: null,
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
@@ -177,12 +196,21 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const { [id]: _, ...rest } = scene.objectsById;
         const { [id]: __, ...kfRest } = scene.keyframesByObjectId;
         const { [id]: ___, ...efRest } = scene.effectsByObjectId;
+        // Remove from groups
+        const updatedGroups = { ...scene.groups };
+        for (const [gid, group] of Object.entries(updatedGroups)) {
+          if (group.memberIds.includes(id)) {
+            updatedGroups[gid] = { ...group, memberIds: group.memberIds.filter((m) => m !== id) };
+            if (updatedGroups[gid].memberIds.length === 0) delete updatedGroups[gid];
+          }
+        }
         return {
           ...scene,
           objectsById: rest,
           objectOrder: scene.objectOrder.filter((oid) => oid !== id),
           keyframesByObjectId: kfRest,
           effectsByObjectId: efRest,
+          groups: updatedGroups,
         };
       });
       set((s) => ({ selectedIds: s.selectedIds.filter((sid) => sid !== id) }));
@@ -199,7 +227,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
     },
 
-    setSelectedIds: (ids) => set({ selectedIds: ids }),
+    setSelectedIds: (ids) => set({ selectedIds: ids, selectedNarrationId: null, selectedOverlayId: null }),
     setActiveTool: (tool) => set({ activeTool: tool }),
     setActiveLayer: (layer) => set({ activeLayer: layer }),
 
@@ -276,12 +304,25 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
     },
 
+    updateEffect: (objectId, effectId, updates) => {
+      get()._updateActiveScene((s) => ({
+        ...s,
+        effectsByObjectId: {
+          ...s.effectsByObjectId,
+          [objectId]: (s.effectsByObjectId[objectId] || []).map((e) =>
+            e.id === effectId ? { ...e, ...updates } : e
+          ),
+        },
+      }));
+    },
+
     // Narration CRUD
     addNarration: (event) => {
       get()._updateActiveScene((s) => ({
         ...s,
         narrationEvents: [...s.narrationEvents, event],
       }));
+      set({ selectedNarrationId: event.id, selectedIds: [], selectedOverlayId: null });
     },
 
     updateNarration: (id, updates) => {
@@ -298,7 +339,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...s,
         narrationEvents: s.narrationEvents.filter((n) => n.id !== id),
       }));
+      set((s) => s.selectedNarrationId === id ? { selectedNarrationId: null } : {});
     },
+
+    setSelectedNarrationId: (id) => set({ selectedNarrationId: id, selectedOverlayId: null, selectedIds: [] }),
 
     // Overlay CRUD
     addOverlay: (event) => {
@@ -306,6 +350,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...s,
         overlayEvents: [...s.overlayEvents, event],
       }));
+      set({ selectedOverlayId: event.id, selectedIds: [], selectedNarrationId: null });
     },
 
     updateOverlay: (id, updates) => {
@@ -322,6 +367,80 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...s,
         overlayEvents: s.overlayEvents.filter((o) => o.id !== id),
       }));
+      set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
+    },
+
+    setSelectedOverlayId: (id) => set({ selectedOverlayId: id, selectedNarrationId: null, selectedIds: [] }),
+
+    // Groups
+    createGroup: (name, memberIds) => {
+      const scene = get().getActiveScene();
+      const groupCount = Object.keys(scene.groups).length;
+      const color = GROUP_COLORS[groupCount % GROUP_COLORS.length];
+      const group: UnitGroup = { id: uuid(), name, color, memberIds };
+      get()._updateActiveScene((s) => ({
+        ...s,
+        groups: { ...s.groups, [group.id]: group },
+      }));
+    },
+
+    renameGroup: (groupId, name) => {
+      get()._updateActiveScene((s) => ({
+        ...s,
+        groups: {
+          ...s.groups,
+          [groupId]: { ...s.groups[groupId], name },
+        },
+      }));
+    },
+
+    deleteGroup: (groupId) => {
+      get()._updateActiveScene((s) => {
+        const { [groupId]: _, ...rest } = s.groups;
+        return { ...s, groups: rest };
+      });
+    },
+
+    addToGroup: (groupId, objectIds) => {
+      get()._updateActiveScene((s) => {
+        const group = s.groups[groupId];
+        if (!group) return s;
+        const newMembers = [...new Set([...group.memberIds, ...objectIds])];
+        return {
+          ...s,
+          groups: { ...s.groups, [groupId]: { ...group, memberIds: newMembers } },
+        };
+      });
+    },
+
+    removeFromGroup: (groupId, objectIds) => {
+      get()._updateActiveScene((s) => {
+        const group = s.groups[groupId];
+        if (!group) return s;
+        const newMembers = group.memberIds.filter((m) => !objectIds.includes(m));
+        if (newMembers.length === 0) {
+          const { [groupId]: _, ...rest } = s.groups;
+          return { ...s, groups: rest };
+        }
+        return {
+          ...s,
+          groups: { ...s.groups, [groupId]: { ...group, memberIds: newMembers } },
+        };
+      });
+    },
+
+    getGroupForObject: (objectId) => {
+      const scene = get().getActiveScene();
+      for (const group of Object.values(scene.groups)) {
+        if (group.memberIds.includes(objectId)) return group;
+      }
+      return null;
+    },
+
+    selectGroup: (groupId) => {
+      const scene = get().getActiveScene();
+      const group = scene.groups[groupId];
+      if (group) set({ selectedIds: [...group.memberIds], selectedNarrationId: null, selectedOverlayId: null });
     },
 
     setRecordDurationSeconds: (dur) => set({ recordDurationSeconds: dur }),
@@ -454,12 +573,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         }
       }
 
-      // Active narrations
       const activeNarrations = (scene.narrationEvents || []).filter(
         (n) => time >= n.startTime && time <= n.startTime + n.duration
       );
 
-      // Active overlay (only the first one if overlapping)
       const activeOverlay = (scene.overlayEvents || []).find(
         (o) => time >= o.startTime && time <= o.startTime + o.duration
       ) || null;
@@ -475,6 +592,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     importProject: (json) => {
       try {
         const data = deserializeProject(json);
+        // Ensure groups exist on all scenes
+        data.scenes = data.scenes.map((s) => ({ ...s, groups: s.groups || {} }));
         set({
           project: data,
           activeSceneId: data.scenes[0]?.id || '',
@@ -487,6 +606,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
           derivedEffects: {},
           activeNarrations: [],
           activeOverlay: null,
+          selectedNarrationId: null,
+          selectedOverlayId: null,
         });
       } catch (e) {
         console.error('Invalid project JSON', e);

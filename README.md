@@ -1,6 +1,6 @@
 # Battle Map Builder & Timeline Animator
 
-A 100% browser-based tactical battle map editor for creating animated military-style visualizations — similar to YouTube battle recap videos. Place NATO-style unit icons on a map, record their movements in real-time, and play back the full animation on a timeline. Everything runs client-side with no server or database required. Deployable as a static site.
+A 100% browser-based tactical battle map editor for creating animated military-style visualizations — similar to YouTube battle recap videos. Place NATO-style unit icons on a map, record their movements in real-time, and play back the full animation on a timeline. Everything runs client-side with no server or database required.
 
 ---
 
@@ -15,201 +15,90 @@ A 100% browser-based tactical battle map editor for creating animated military-s
 | Styling | Tailwind CSS + custom military design tokens (amber/olive/charcoal palette via HSL CSS variables) |
 | UI Components | shadcn/ui (Radix primitives) |
 | Icons | Lucide React |
-| Routing | React Router DOM (single route `/`) |
 | ID Generation | `uuid` v4 |
-| Hosting | Static site — GitHub Pages, Netlify, or any CDN |
 
 ---
 
 ## Core Features
 
-- **Canvas Editor** — Load a background map image (user upload as data URL), then drag-and-drop military unit icons (infantry, cavalry, armor, artillery, naval, air, HQ, supply) onto a Konva stage with grid overlay, zoom, and pan.
-- **Record Movement** — Click **Record**, drag one or more units to new positions, click **Stop**. The app captures start/end keyframes with configurable duration so all moved units animate together on playback.
-- **Deterministic Playback** — A `requestAnimationFrame` loop drives playback. Object transforms at any time `t` are computed purely from keyframes via linear interpolation — no runtime state mutation.
-- **Multi-Select Group Drag** — Shift-click to select multiple units. Dragging one selected unit moves all selected by the same delta, maintaining relative offsets. During recording, the entire group shares the same `t0`/`t1`.
-- **Timeline Panel** — Bottom panel with play/pause, time display, draggable playhead scrub, ruler tick marks, and per-object keyframe markers.
-- **Properties Panel** — Edit position, rotation, scale, visibility of selected units. Manually insert keyframes at the current playhead time. Clear keyframes per object or globally.
-- **Import/Export** — Export the entire project (scenes, objects, keyframes, background image data URL) as a versioned JSON file. Import restores everything with basic migration support.
-- **Scene Management** — Projects support multiple scenes with configurable durations (currently single active scene editing).
+### Canvas Editor
+- Load background map images (user upload as data URL)
+- Place military unit icons (infantry, cavalry, armor, artillery, naval, air, HQ, supply) on a Konva stage
+- Grid overlay, zoom (scroll wheel), pan (middle mouse button)
+- Upload custom unit icons (auto-resized, max 200KB)
+- Click-away deselection — click empty canvas to deselect all
+
+### Effects System
+- **6 effect types**: Shake, Explosion, Crack, Blood, Smoke, Fire
+- Effects attach to units with configurable start time, duration, and intensity
+- **Cinematic visuals**: Explosions with shockwave rings + debris particles, volumetric smoke with multi-frequency turbulence, layered fire with flickering flames + rising embers, organic blood splatters with drip trails, fracture webs with depth shading
+- **Persistent effects**: Crack and blood remain visible after the effect ends
+- **Drag-and-drop from sidebar**: Drag effect presets from the Effects tab onto units or empty canvas
+- **Standalone map effects**: Drop effects on empty space to create map-level effects (fire on terrain, etc.)
+- **Timeline control**: Drag effect blocks to reposition, resize edges to adjust start/duration
+
+### Narration & Overlay System
+- **Narration track**: Add text captions that appear during playback with configurable position, font, animation (fade/typewriter/slide-up), and colors
+- **Overlay track**: Add full-screen image cutaways with blur/dim background effects, titles, subtitles, and transitions
+- **Click to edit**: Click narration/overlay blocks on the timeline to open their editor in the Properties panel
+- **Resize & move**: Drag edges to adjust timing, drag center to reposition on timeline
+
+### Persistent Named Groups
+- Select multiple units (shift-click) and create a named group
+- Groups are color-coded and persist across editing sessions
+- Group badge shown on each member unit on the canvas
+- "Select All" to quickly select all group members
+- Add/remove units from existing groups
+- Group members highlighted when any member is selected
+
+### Recording & Playback
+- **Record movement**: Click Record, drag units, click Stop — captures start/end keyframes
+- **Multi-select group drag**: Shift-click to select multiple units, drag one to move all
+- **Deterministic playback**: `requestAnimationFrame` loop with linear interpolation between keyframes
+- **Timeline panel**: Play/pause, time scrub, per-object keyframe markers
+
+### Properties Panel
+- Edit position, rotation, scale, visibility, lock for selected units
+- Add/remove keyframes at playhead time
+- Manage effects per unit
+- Create and manage groups
+- Narration/overlay editors with full configuration
+
+### Import/Export
+- Export entire project as versioned JSON
+- Import restores everything with migration support
 
 ---
 
-## Architecture & File Map
+## Architecture
 
 ```
 src/
-├── main.tsx                          # React entry point, renders <App />
-├── App.tsx                           # Router setup (single route → Index page)
-├── index.css                         # Tailwind base + custom CSS variables (design tokens)
-│
-├── domain/                           # Pure business logic (no React, no UI)
-│   ├── models.ts                     # All TypeScript interfaces:
-│   │                                 #   - ProjectData (top-level: version, name, canvas size, scenes[])
-│   │                                 #   - Scene (id, name, duration, backgroundImage, objectsById, objectOrder, keyframesByObjectId)
-│   │                                 #   - MapObject (id, type, unitType, position, rotation, scale, layer, visibility, lock)
-│   │                                 #   - Keyframe (time, x, y, rotation, scaleX, scaleY, visible)
-│   │                                 #   - ObjectSnapshot (computed transform at a point in time)
-│   │                                 #   - UnitType, DrawToolType, LayerType enums
-│   │
+├── domain/
+│   ├── models.ts              # TypeScript interfaces (MapObject, Scene, Keyframe, UnitEffect, NarrationEvent, OverlayEvent, UnitGroup, etc.)
 │   └── services/
-│       ├── timeline.ts               # Deterministic interpolation engine:
-│       │                             #   - evaluateObjectAtTime(obj, keyframes[], t) → ObjectSnapshot
-│       │                             #     Returns linearly interpolated x,y,rotation,scale,visible
-│       │                             #     from sorted keyframes. Falls back to object's static transform
-│       │                             #     if no keyframes exist.
-│       │                             #   - upsertKeyframe(keyframes[], kf) → sorted deduplicated array
-│       │
-│       ├── recording.ts              # Recording session management (pure functions):
-│       │                             #   - RecordingSession type (startTime, durationMs, movedObjectIds, initialSnapshots)
-│       │                             #   - createRecordingSession(startTime, durationMs) → new session
-│       │                             #   - captureInitialSnapshot(session, obj) → mutates session, captures pre-move state
-│       │                             #   - finalizeRecording(session, objectsById, existingKeyframes) → updated keyframesByObjectId
-│       │                             #     For each moved object: inserts keyframe at t0 (from snapshot) and t1 (from current position)
-│       │
-│       └── serialization.ts          # Project persistence:
-│                                     #   - exportProject(project) → JSON string (with version "1.0")
-│                                     #   - importProject(json) → ProjectData (parses, migrates old flat format if needed)
+│       ├── timeline.ts        # Deterministic interpolation engine
+│       ├── recording.ts       # Recording session management
+│       ├── effects.ts         # Effect presets and factory
+│       ├── serialization.ts   # Project JSON import/export
+│       └── videoExport.ts     # Video export (planned)
 │
 ├── store/
-│   └── editorStore.ts                # Zustand store — single source of truth for all editor state:
-│                                     #   STATE:
-│                                     #     project: ProjectData (normalized scene-first model)
-│                                     #     activeSceneId, selectedIds[], activeTool, activeLayer
-│                                     #     currentTime, isPlaying, isRecording, recordingSession
-│                                     #     recordDurationSeconds (configurable, default 2.0)
-│                                     #     stageScale, stagePosition (zoom/pan)
-│                                     #     derivedTransforms: Record<string, ObjectSnapshot> (computed during playback)
-│                                     #
-│                                     #   KEY ACTIONS:
-│                                     #     addObject / removeObject / updateObject — CRUD on active scene's objectsById
-│                                     #     startRecording / stopRecording — manage RecordingSession lifecycle
-│                                     #     onObjectDragStart/Move/End — track movement, capture snapshots during recording
-│                                     #     onGroupDragMove — apply delta to all selected objects
-│                                     #     seekTo(time) — set currentTime + recompute derived transforms
-│                                     #     computeDerivedTransforms(time) — runs evaluateObjectAtTime for all objects
-│                                     #     addKeyframeAtTime / clearKeyframes / clearAllKeyframes
-│                                     #     exportProject / importProject — JSON round-trip
-│                                     #     setBackgroundImage, setSceneDuration, setStageScale, setStagePosition
+│   └── editorStore.ts         # Zustand store — all editor state and actions
 │
 ├── pages/
-│   ├── Index.tsx                     # Main editor layout — assembles all panels:
-│   │                                 #   Header bar → Toolbar → 3-column body (AssetLibrary | MapCanvas | PropertiesPanel) → TimelinePanel
-│   └── NotFound.tsx                  # 404 page
+│   └── Index.tsx              # Main editor layout + narration overlay renderer
 │
-├── components/
-│   ├── NavLink.tsx                   # Reusable nav link component
-│   │
-│   └── editor/                       # All editor UI components:
-│       ├── MapCanvas.tsx             # Konva Stage rendering:
-│       │                             #   - Grid overlay layer
-│       │                             #   - Background image layer (from scene.backgroundImage)
-│       │                             #   - Unit rendering layer: reads derivedTransforms during playback,
-│       │                             #     raw objectsById during editing
-│       │                             #   - Drag handlers: onDragStart/Move/End update store,
-│       │                             #     trigger group movement for multi-select
-│       │                             #   - Shift-click for multi-select, click for single select
-│       │                             #   - Wheel zoom + stage panning
-│       │                             #   - Red "● REC" overlay during recording
-│       │                             #   - Drop handler for adding units from AssetLibrary
-│       │
-│       ├── Toolbar.tsx               # Top toolbar:
-│       │                             #   - Tool buttons: Select, Arrow, Line, Freehand, Rectangle, Circle (draw tools are stubs)
-│       │                             #   - Record/Stop button with duration input (seconds)
-│       │                             #   - Delete selected objects button
-│       │                             #   - Import/Export project buttons (JSON file download/upload)
-│       │
-│       ├── AssetLibrary.tsx          # Left panel — unit palette:
-│       │                             #   - Grid of draggable unit tiles (infantry, cavalry, armor, artillery, naval, air, HQ, supply)
-│       │                             #   - "Upload Map Image" button (reads file as data URL → setBackgroundImage)
-│       │                             #   - Drag-and-drop: tiles are draggable, MapCanvas handles the drop to create MapObject
-│       │
-│       ├── PropertiesPanel.tsx       # Right panel — selected object editor:
-│       │                             #   - Shows when 1 object is selected
-│       │                             #   - Editable fields: X, Y, Rotation, Scale X, Scale Y
-│       │                             #   - Visibility toggle, Lock toggle
-│       │                             #   - "Add Keyframe at Playhead" button — inserts keyframe at currentTime
-│       │                             #   - "Clear Keyframes" button — removes all keyframes for selected object
-│       │                             #   - "Clear ALL Keyframes" button — removes all keyframes in active scene
-│       │
-│       ├── TimelinePanel.tsx         # Bottom panel — playback controls:
-│       │                             #   - Play/Pause button
-│       │                             #   - Current time display (seconds) + scene duration
-│       │                             #   - Scene duration editor (seconds input)
-│       │                             #   - Ruler with tick marks (every 500ms, labels every 1s)
-│       │                             #   - Draggable playhead (scrubs currentTime via seekTo)
-│       │                             #   - Keyframe diamond markers on the ruler for all objects
-│       │                             #   - requestAnimationFrame playback loop:
-│       │                             #     increments currentTime, calls computeDerivedTransforms,
-│       │                             #     auto-stops at scene duration
-│       │
-│       └── UnitIcon.tsx              # SVG NATO-style military unit symbol renderer:
-│                                     #   - Renders unit type icons (infantry ×, cavalry /, armor ◇, etc.)
-│                                     #   - Unified amber color scheme
-│                                     #   - Used both in AssetLibrary tiles and on MapCanvas
+├── components/editor/
+│   ├── MapCanvas.tsx          # Konva canvas — units, effects, drag-drop, panning
+│   ├── Toolbar.tsx            # Top toolbar (tools, record, import/export)
+│   ├── AssetLibrary.tsx       # Left panel — unit palette + draggable effect presets
+│   ├── PropertiesPanel.tsx    # Right panel — unit editor, narration editor, overlay editor, group management
+│   ├── TimelinePanel.tsx      # Bottom panel — playback, tracks, draggable effect/narration/overlay blocks
+│   └── UnitIcon.tsx           # NATO-style unit icon renderer
 │
-├── utils/
-│   └── ids.ts                        # ID generation utility (re-exports uuid v4)
-│
-├── hooks/                            # React hooks
-│   ├── use-mobile.tsx                # Mobile detection hook
-│   └── use-toast.ts                  # Toast notification hook
-│
-├── lib/
-│   └── utils.ts                      # Tailwind `cn()` merge utility
-│
-└── components/ui/                    # shadcn/ui primitives (button, dialog, input, slider, tabs, etc.)
+└── components/ui/             # shadcn/ui primitives
 ```
-
----
-
-## Data Model (Normalized)
-
-```
-ProjectData
-├── version: "1.0"
-├── name: string
-├── canvasWidth / canvasHeight: number
-└── scenes: Scene[]
-    └── Scene
-        ├── id: string (uuid)
-        ├── name: string
-        ├── duration: number (ms)
-        ├── backgroundImage?: string (data URL)
-        ├── objectsById: Record<string, MapObject>
-        ├── objectOrder: string[] (z-order, bottom to top)
-        └── keyframesByObjectId: Record<string, Keyframe[]> (sorted by time)
-
-MapObject
-├── id, type ('unit'|'drawing'|'effect'), unitType?
-├── x, y, rotation, scaleX, scaleY
-├── layer ('background'|'drawings'|'units'|'effects')
-├── visible, locked
-└── drawTool?, points?, width?, height?, color?
-
-Keyframe
-├── time (ms within scene)
-├── x, y, rotation, scaleX, scaleY, visible
-```
-
----
-
-## How Recording Works
-
-1. User clicks **Record** → `startRecording()` creates a `RecordingSession` with `startTime = currentTime` and `durationMs = recordDurationSeconds × 1000`.
-2. User drags units → `onObjectDragStart` calls `captureInitialSnapshot()` to save the object's pre-move transform. For multi-select, all selected objects get snapshots.
-3. User clicks **Stop** → `stopRecording()` calls `finalizeRecording()` which:
-   - For each moved object, creates a keyframe at `t0` (from snapshot) and `t1 = t0 + durationMs` (from current position).
-   - Upserts into the existing sorted keyframe arrays.
-4. Multiple recordings can be chained: record A→B at t=0, then seek to t=2000 and record B→C.
-
-## How Playback Works
-
-1. User clicks **Play** → `TimelinePanel` starts a `requestAnimationFrame` loop.
-2. Each frame: `currentTime` advances based on wall-clock delta.
-3. `computeDerivedTransforms(time)` runs `evaluateObjectAtTime()` for every object in the scene.
-4. `evaluateObjectAtTime()` finds the two surrounding keyframes and returns linearly interpolated `{x, y, rotation, scaleX, scaleY, visible}`.
-5. `MapCanvas` reads `derivedTransforms` (during playback) or raw `objectsById` (during editing) to position units.
-6. Playback auto-stops when `currentTime >= scene.duration`.
 
 ---
 
@@ -222,12 +111,27 @@ npm install
 npm run dev
 ```
 
+---
+
+## Keyboard & Mouse Controls
+
+| Action | Control |
+|---|---|
+| Pan canvas | Middle mouse button drag |
+| Zoom | Scroll wheel |
+| Select unit | Left click |
+| Multi-select | Shift + left click |
+| Deselect all | Click empty canvas |
+| Drag unit | Left click + drag (when Select tool active) |
+| Move group | Drag any selected unit (moves all selected) |
+
+---
+
 ## Planned Features
 
-- Drawing tools (arrows, lines, freehand paths) on canvas
-- Effects layer (explosions, gunfire sprites at specific timestamps)
 - WebM/MP4 video export via `canvas.captureStream()` + `MediaRecorder`
 - Formation movement with maintained relative offsets
 - Undo/redo system
-- Audio triggers and narration text tracks
-- Multi-scene editing with scene transitions
+- Audio narration track with voice recording
+- Multi-scene editing with transitions
+- More effect types (rain, fog, arrows/projectiles)

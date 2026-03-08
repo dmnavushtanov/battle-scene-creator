@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
@@ -23,87 +23,36 @@ const NarrationOverlay: React.FC = () => {
 
   return (
     <>
-      {/* Overlay event: blur + dim + portrait */}
       {activeOverlay && (
-        <div
-          className="absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-500"
-          style={{ opacity: activeOverlay.transition === 'fade' ? 1 : 1 }}
-        >
-          {/* Dim/Blur background */}
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundColor: `rgba(0,0,0,${activeOverlay.dimOpacity})`,
-              backdropFilter: activeOverlay.backgroundEffect.includes('blur') ? 'blur(8px)' : undefined,
-            }}
-          />
-          {/* Content */}
-          <div
-            className="relative z-10 flex flex-col items-center gap-4 max-w-lg"
-            style={{
-              alignSelf: activeOverlay.imagePosition === 'left' ? 'flex-start' : activeOverlay.imagePosition === 'right' ? 'flex-end' : 'center',
-            }}
-          >
+        <div className="absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-500">
+          <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${activeOverlay.dimOpacity})`, backdropFilter: activeOverlay.backgroundEffect.includes('blur') ? 'blur(8px)' : undefined }} />
+          <div className="relative z-10 flex flex-col items-center gap-4 max-w-lg" style={{ alignSelf: activeOverlay.imagePosition === 'left' ? 'flex-start' : activeOverlay.imagePosition === 'right' ? 'flex-end' : 'center' }}>
             {activeOverlay.imageUrl && (
-              <img
-                src={activeOverlay.imageUrl}
-                alt={activeOverlay.title || ''}
-                className="rounded-lg border-2 border-primary/30 shadow-lg max-h-64 object-contain"
-                style={{ transform: `scale(${activeOverlay.imageScale})` }}
-              />
+              <img src={activeOverlay.imageUrl} alt={activeOverlay.title || ''} className="rounded-lg border-2 border-primary/30 shadow-lg max-h-64 object-contain" style={{ transform: `scale(${activeOverlay.imageScale})` }} />
             )}
-            {activeOverlay.title && (
-              <h2 className="font-mono text-xl font-bold text-primary amber-glow text-center">
-                {activeOverlay.title}
-              </h2>
-            )}
-            {activeOverlay.subtitle && (
-              <p className="font-mono text-sm text-foreground/80 text-center">
-                {activeOverlay.subtitle}
-              </p>
-            )}
+            {activeOverlay.title && <h2 className="font-mono text-xl font-bold text-primary amber-glow text-center">{activeOverlay.title}</h2>}
+            {activeOverlay.subtitle && <p className="font-mono text-sm text-foreground/80 text-center">{activeOverlay.subtitle}</p>}
           </div>
         </div>
       )}
 
-      {/* Narration text overlays */}
       {activeNarrations.map((n) => {
         if (!n.text) return null;
         const progress = Math.min(1, (currentTime - n.startTime) / Math.max(n.duration, 1));
         const fadeEnd = Math.max(0, 1 - (currentTime - n.startTime - n.duration + 500) / 500);
-
         let opacity = 1;
         if (n.textAnimation === 'fade') {
           const fadeIn = Math.min(1, (currentTime - n.startTime) / 300);
           opacity = Math.min(fadeIn, fadeEnd);
         }
-
         const posStyle = n.position === 'custom'
           ? { left: n.customX || 100, top: n.customY || 100 }
           : positionMap[n.position] || positionMap.bottom;
 
         return (
-          <div
-            key={n.id}
-            className="absolute z-40 pointer-events-none max-w-2xl px-6 py-3 rounded-lg"
-            style={{
-              ...posStyle,
-              opacity,
-              backgroundColor: n.bgOpacity > 0 ? `rgba(0,0,0,${n.bgOpacity})` : undefined,
-            }}
-          >
-            <p
-              className="font-mono text-center whitespace-pre-wrap"
-              style={{
-                fontSize: n.fontSize,
-                fontWeight: n.fontStyle === 'bold' ? 700 : 400,
-                fontStyle: n.fontStyle === 'italic' ? 'italic' : 'normal',
-                color: n.textColor,
-              }}
-            >
-              {n.textAnimation === 'typewriter'
-                ? n.text.slice(0, Math.floor(n.text.length * progress))
-                : n.text}
+          <div key={n.id} className="absolute z-40 pointer-events-none max-w-2xl px-6 py-3 rounded-lg" style={{ ...posStyle, opacity, backgroundColor: n.bgOpacity > 0 ? `rgba(0,0,0,${n.bgOpacity})` : undefined }}>
+            <p className="font-mono text-center whitespace-pre-wrap" style={{ fontSize: n.fontSize, fontWeight: n.fontStyle === 'bold' ? 700 : 400, fontStyle: n.fontStyle === 'italic' ? 'italic' : 'normal', color: n.textColor }}>
+              {n.textAnimation === 'typewriter' ? n.text.slice(0, Math.floor(n.text.length * progress)) : n.text}
             </p>
           </div>
         );
@@ -121,12 +70,8 @@ const Index: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-panel border-b border-border">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-mono font-bold text-primary amber-glow tracking-wider uppercase">
-            Battle Map
-          </h1>
-          <span className="text-[9px] font-mono px-2 py-0.5 bg-muted text-muted-foreground rounded uppercase">
-            MVP
-          </span>
+          <h1 className="text-sm font-mono font-bold text-primary amber-glow tracking-wider uppercase">Battle Map</h1>
+          <span className="text-[9px] font-mono px-2 py-0.5 bg-muted text-muted-foreground rounded uppercase">MVP</span>
         </div>
       </div>
 
@@ -137,7 +82,7 @@ const Index: React.FC = () => {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left: Asset Library */}
         {leftPanelOpen && (
-          <div className="w-52 flex-shrink-0">
+          <div className="w-52 flex-shrink-0 overflow-hidden">
             <AssetLibrary />
           </div>
         )}
@@ -153,17 +98,18 @@ const Index: React.FC = () => {
         </button>
 
         {/* Center: Canvas + Overlays */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative overflow-hidden">
           <MapCanvas />
           <NarrationOverlay />
         </div>
 
+        {/* Right: Properties Panel */}
         {rightPanelOpen && (
-          <div className="w-64 flex-shrink-0 relative">
+          <div className="w-72 flex-shrink-0 overflow-hidden relative">
             <button
               onClick={() => setRightPanelOpen(false)}
               title="Hide properties panel"
-              className="absolute top-1/2 -translate-y-1/2 -left-6 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
+              className="absolute top-1/2 -translate-y-1/2 left-0 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md -translate-x-full"
             >
               <PanelRightClose size={14} className="mx-auto" />
             </button>

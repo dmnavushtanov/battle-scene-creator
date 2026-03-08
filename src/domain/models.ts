@@ -25,6 +25,7 @@ export interface MapObject {
   width?: number;
   height?: number;
   color?: string;
+  effectType?: EffectType; // For standalone map effects
 }
 
 export interface Keyframe {
@@ -42,8 +43,8 @@ export interface UnitEffect {
   type: EffectType;
   startTime: number;
   duration: number;
-  intensity: number; // 0-1
-  persistent: boolean; // true = damage stays visible after effect ends
+  intensity: number;
+  persistent: boolean;
 }
 
 export interface NarrationEvent {
@@ -78,6 +79,13 @@ export interface OverlayEvent {
   transition: OverlayTransition;
 }
 
+export interface UnitGroup {
+  id: string;
+  name: string;
+  color: string;
+  memberIds: string[];
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -89,6 +97,7 @@ export interface Scene {
   effectsByObjectId: Record<string, UnitEffect[]>;
   narrationEvents: NarrationEvent[];
   overlayEvents: OverlayEvent[];
+  groups: Record<string, UnitGroup>;
 }
 
 export interface ProjectData {
@@ -110,8 +119,8 @@ export interface ObjectSnapshot {
 
 export interface ActiveEffect {
   type: EffectType;
-  progress: number; // 0-1 within effect duration
+  progress: number;
   intensity: number;
   persistent: boolean;
-  ended: boolean; // true if time > startTime + duration
+  ended: boolean;
 }
