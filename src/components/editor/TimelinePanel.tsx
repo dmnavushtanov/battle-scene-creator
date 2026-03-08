@@ -60,6 +60,8 @@ const TimelinePanel: React.FC = () => {
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
+  // Multi-select keyframes: set of "objectId:index" keys
+  const [selectedKfSet, setSelectedKfSet] = useState<Set<string>>(new Set());
 
   // Generalized delete confirmation
   const [pendingDelete, setPendingDelete] = useState<{ label: string; onConfirm: () => void } | null>(null);
@@ -238,17 +240,38 @@ const TimelinePanel: React.FC = () => {
     window.addEventListener('mouseup', onUp);
   };
 
-  /** Keyframe drag handler */
+  /** Keyframe drag handler — supports multi-select */
   const makeKeyframeDragHandler = (objectId: string, kfIndex: number, origTime: number) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const kfKey = `${objectId}:${kfIndex}`;
+    const isInMultiSelect = selectedKfSet.has(kfKey);
     const startX = e.clientX;
+
+    // Collect all selected keyframes' original times for batch move
+    const selectedEntries: { objectId: string; index: number; origTime: number }[] = [];
+    if (isInMultiSelect && selectedKfSet.size > 1) {
+      const scene = useEditorStore.getState().getActiveScene();
+      selectedKfSet.forEach((key) => {
+        const [oid, idxStr] = key.split(':');
+        const idx = parseInt(idxStr, 10);
+        const kfs = scene.keyframesByObjectId[oid] || [];
+        if (kfs[idx]) {
+          selectedEntries.push({ objectId: oid, index: idx, origTime: kfs[idx].time });
+        }
+      });
+    } else {
+      selectedEntries.push({ objectId, index: kfIndex, origTime });
+    }
+
     const onMove = (me: MouseEvent) => {
       me.preventDefault();
       const dx = me.clientX - startX;
       const dtMs = dx / pxPerMs;
-      const newTime = Math.max(0, Math.min(totalDuration, origTime + dtMs));
-      useEditorStore.getState().updateKeyframe(objectId, kfIndex, { time: newTime });
+      for (const entry of selectedEntries) {
+        const newTime = Math.max(0, Math.min(totalDuration, entry.origTime + dtMs));
+        useEditorStore.getState().updateKeyframe(entry.objectId, entry.index, { time: newTime });
+      }
     };
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
@@ -323,7 +346,6 @@ const TimelinePanel: React.FC = () => {
         <Tooltip><TooltipTrigger asChild>
         <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to end</p></TooltipContent></Tooltip>
-        <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
 
@@ -564,20 +586,37 @@ const TimelinePanel: React.FC = () => {
 
                 {/* Keyframe markers */}
                 {unitKfs.map((kf, idx) => {
+                  const kfKey = `${unit.id}:${idx}`;
                   const isKfSelected = selectedKeyframeIndex?.objectId === unit.id && selectedKeyframeIndex?.index === idx;
+                  const isMultiSelected = selectedKfSet.has(kfKey);
+                  const highlighted = isKfSelected || isMultiSelected;
                   return (
                     <div
                       key={`kf-${idx}`}
                       className={`absolute top-1 w-3 h-3 rounded-full border cursor-pointer hover:scale-125 transition-transform ${
-                        isKfSelected
+                        highlighted
                           ? 'bg-primary border-primary-foreground scale-125'
                           : 'bg-keyframe border-primary-foreground'
                       }`}
                       style={{ left: kf.time * pxPerMs - 6 }}
-                      title={`t=${formatTime(kf.time)} · Click to select, drag to move`}
+                      title={`t=${formatTime(kf.time)} · Click to select, Shift+click multi-select, drag to move`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedKeyframeIndex({ objectId: unit.id, index: idx });
+                        if (e.shiftKey) {
+                          // Toggle in multi-select set
+                          setSelectedKfSet((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(kfKey)) {
+                              next.delete(kfKey);
+                            } else {
+                              next.add(kfKey);
+                            }
+                            return next;
+                          });
+                        } else {
+                          setSelectedKfSet(new Set([kfKey]));
+                          setSelectedKeyframeIndex({ objectId: unit.id, index: idx });
+                        }
                         setSelectedIds([unit.id]);
                       }}
                       onMouseDown={(e) => {

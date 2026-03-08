@@ -1,17 +1,72 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
 import NarrationOverlay from '@/components/editor/NarrationOverlay';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Upload, Swords } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { useState } from 'react';
+import { useEditorStore } from '@/store/editorStore';
+
+const StartMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: string) => void }> = ({ onNewProject, onLoadProject }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => onLoadProject(reader.result as string);
+    reader.readAsText(file);
+  };
+
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-8">
+        <div className="flex items-center gap-3">
+          <Swords size={32} className="text-primary" />
+          <h1 className="text-2xl font-mono font-bold text-primary amber-glow tracking-wider uppercase">Battle Map</h1>
+        </div>
+        <p className="text-sm font-mono text-muted-foreground text-center max-w-md">
+          Create animated battle map scenes with units, effects, narrations and export as video.
+        </p>
+        <div className="flex gap-4">
+          <button
+            onClick={onNewProject}
+            className="flex items-center gap-2 px-6 py-3 bg-primary/20 text-primary border border-primary/50 rounded font-mono text-sm uppercase hover:bg-primary/30 transition-colors"
+          >
+            <Plus size={16} /> New Project
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-2 px-6 py-3 bg-muted text-foreground border border-border rounded font-mono text-sm uppercase hover:bg-muted/80 transition-colors"
+          >
+            <Upload size={16} /> Load Project
+          </button>
+          <input ref={fileRef} type="file" accept=".json" onChange={handleFile} className="hidden" />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Index: React.FC = () => {
+  const [projectStarted, setProjectStarted] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const importProject = useEditorStore((s) => s.importProject);
+
+  if (!projectStarted) {
+    return (
+      <StartMenu
+        onNewProject={() => setProjectStarted(true)}
+        onLoadProject={(json) => {
+          importProject(json);
+          setProjectStarted(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
