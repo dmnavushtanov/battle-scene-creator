@@ -266,6 +266,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }));
     },
 
+    batchAddKeyframes: (objectId, keyframes) => {
+      get()._updateActiveScene((s) => {
+        let existing = s.keyframesByObjectId[objectId] || [];
+        for (const kf of keyframes) {
+          existing = upsertKeyframe(existing, kf);
+        }
+        return {
+          ...s,
+          keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: existing },
+        };
+      });
+    },
+
     clearKeyframes: (objectId) => {
       get()._updateActiveScene((s) => {
         const { [objectId]: _, ...rest } = s.keyframesByObjectId;
