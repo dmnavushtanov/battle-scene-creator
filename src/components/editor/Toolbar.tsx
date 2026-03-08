@@ -97,16 +97,19 @@ const Toolbar: React.FC = () => {
         duration: scene.duration,
         fps: 30,
         onProgress: setExportProgress,
+        getNarrations: (time: number) => {
+          return (scene.narrationEvents || []).filter(
+            (n) => time >= n.startTime && time <= n.startTime + n.duration
+          );
+        },
         computeFrame: (time: number) => {
           computeDerivedTransforms(time);
-          // Force update objects to derived positions for the export
           const state = useEditorStore.getState();
           const transforms = state.derivedTransforms;
           const sc = state.getActiveScene();
           for (const id of sc.objectOrder) {
             const t = transforms[id];
             if (!t) continue;
-            // Find the Konva node and update it directly
             const node = stage.findOne(`#unit-${id}`) as Konva.Group;
             if (node) {
               node.x(t.x);
