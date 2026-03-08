@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { v4 as uuid } from 'uuid';
-import { Trash2, Users, ChevronRight, X, Plus, Minus } from 'lucide-react';
+import { Trash2, Users, ChevronRight, X, Plus, Minus, Mic, Square, Play as PlayIcon } from 'lucide-react';
 import type { NarrationEvent, OverlayEvent, TextAnimation, OverlayTransition } from '@/domain/models';
 
 const formatTime = (ms: number) => {
