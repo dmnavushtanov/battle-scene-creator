@@ -566,11 +566,15 @@ const PropertiesPanel: React.FC = () => {
           </label>
         </div>
 
-        {/* Clear keyframes */}
+        {/* Keyframe editing */}
         {singleKeyframeCount > 0 && (
-          <button onClick={() => clearKeyframes(single.id)} className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors">
-            Clear Keyframes ({singleKeyframeCount})
-          </button>
+          <div className="pt-2 border-t border-border">
+            <label className="text-[9px] font-mono uppercase text-muted-foreground">Keyframes ({singleKeyframeCount})</label>
+            <KeyframeEditor objectId={single.id} />
+            <button onClick={() => clearKeyframes(single.id)} className="mt-1.5 w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors">
+              Clear All Keyframes
+            </button>
+          </div>
         )}
 
         {/* === EFFECTS SECTION === */}
