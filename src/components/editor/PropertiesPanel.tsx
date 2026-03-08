@@ -1,6 +1,7 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
+import { EFFECT_COLORS } from '@/domain/constants';
 import { Trash2 } from 'lucide-react';
 import { formatTime } from '@/domain/formatters';
 import { EFFECT_COLORS } from '@/domain/constants';
