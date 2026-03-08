@@ -4,6 +4,8 @@ import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock
 import { v4 as uuid } from 'uuid';
 import type { NarrationEvent, OverlayEvent, UnitEffect, SoundEvent } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
+import { EFFECT_COLORS } from '@/domain/constants';
+import { formatTime } from '@/domain/formatters';
 import {
   Dialog,
   DialogContent,
@@ -12,10 +14,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
-};
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -56,13 +54,7 @@ const TimelinePanel: React.FC = () => {
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
-  const formatTime = (ms: number) => {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    const milli = Math.floor((ms % 1000) / 100);
-    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${milli}`;
-  };
+  // formatTime is now imported from @/domain/formatters
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();

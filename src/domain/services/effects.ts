@@ -1,5 +1,26 @@
-import type { EffectType, UnitEffect } from '../models';
+import type { EffectType, UnitEffect, ActiveEffect } from '../models';
 import { v4 as uuid } from 'uuid';
+
+/** Deterministic pseudo-random from a seed value */
+export function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Calculate shake offset for units with active shake/explosion effects */
+export function getShakeOffset(effects: ActiveEffect[], time: number): { dx: number; dy: number } {
+  let dx = 0;
+  let dy = 0;
+  for (const eff of effects) {
+    if ((eff.type === 'shake' || eff.type === 'explosion') && !eff.ended) {
+      const amplitude = eff.intensity * 8;
+      const decay = 1 - eff.progress;
+      dx += Math.sin(time * 4.0 + Math.sin(time * 0.7) * 3) * amplitude * decay;
+      dy += Math.cos(time * 5.3 + Math.cos(time * 0.9) * 2) * amplitude * decay;
+    }
+  }
+  return { dx, dy };
+}
 
 export interface EffectPreset {
   type: EffectType;
