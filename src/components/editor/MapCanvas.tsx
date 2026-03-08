@@ -333,9 +333,9 @@ const MapCanvas: React.FC = () => {
                 onDragMove={(e) => handleDragMove(unit.id, e)}
                 onDragEnd={(e) => handleDragEnd(unit.id, e)}
               >
-                {/* Selection ring */}
+                {/* Selection ring - cyan for group, gold for single */}
                 {isSelected && (
-                  <Rect x={-size / 2 - 4} y={-size / 2 - 4} width={size + 8} height={size + 8} stroke={UNIT_COLOR} strokeWidth={2} dash={[4, 4]} cornerRadius={4} />
+                  <Rect x={-size / 2 - 4} y={-size / 2 - 4} width={size + 8} height={size + 8} stroke={isGroupSelected ? '#00bcd4' : UNIT_COLOR} strokeWidth={isGroupSelected ? 2.5 : 2} dash={isGroupSelected ? [6, 3] : [4, 4]} cornerRadius={4} />
                 )}
 
                 {/* Unit body */}
