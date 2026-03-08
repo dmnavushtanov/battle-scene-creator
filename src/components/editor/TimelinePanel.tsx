@@ -17,6 +17,7 @@ const TimelinePanel: React.FC = () => {
     return scene || s.project.scenes[0];
   });
   const selectedIds = useEditorStore((s) => s.selectedIds);
+  const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
 
   const totalDuration = activeScene.duration;
   const timelineWidth = 800;
@@ -169,18 +170,30 @@ const TimelinePanel: React.FC = () => {
           return (
             <div
               key={unit.id}
-              className={`relative h-6 mb-0.5 rounded-sm border ${
-                isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30'
+              className={`relative h-6 mb-0.5 rounded-sm border cursor-pointer ${
+                isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'
               }`}
               style={{ width: timelineWidth }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.shiftKey) {
+                  setSelectedIds(
+                    selectedIds.includes(unit.id)
+                      ? selectedIds.filter((id) => id !== unit.id)
+                      : [...selectedIds, unit.id]
+                  );
+                } else {
+                  setSelectedIds([unit.id]);
+                }
+              }}
             >
-              <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase">
+              <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none">
                 {unit.label || unit.unitType}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
               </span>
               {unitKfs.map((kf, idx) => (
                 <div
                   key={idx}
-                  className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground"
+                  className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none"
                   style={{ left: kf.time * pxPerMs - 6 }}
                   title={`t=${formatTime(kf.time)}`}
                 />

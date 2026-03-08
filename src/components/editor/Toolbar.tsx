@@ -42,6 +42,12 @@ const Toolbar: React.FC = () => {
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
+  const setSceneDuration = useEditorStore((s) => s.setSceneDuration);
+  const sceneDuration = activeScene.duration;
 
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState(0);
@@ -209,6 +215,24 @@ const Toolbar: React.FC = () => {
       >
         <Trash2 size={16} />
       </button>
+
+      <div className="border-r border-border h-5 mx-2" />
+
+      {/* Scene Duration - always visible */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] font-mono uppercase text-muted-foreground">Duration</span>
+        <input
+          type="number"
+          min={1}
+          max={300}
+          step={1}
+          value={Math.round(sceneDuration / 1000)}
+          onChange={(e) => setSceneDuration(Number(e.target.value) * 1000)}
+          className="w-12 bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground text-center"
+          title="Total scene/video duration in seconds"
+        />
+        <span className="text-[9px] font-mono text-muted-foreground">sec</span>
+      </div>
 
       <div className="flex-1" />
 

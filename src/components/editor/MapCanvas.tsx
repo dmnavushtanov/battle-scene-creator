@@ -147,11 +147,14 @@ const MapCanvas: React.FC = () => {
   );
 
   // Manual pan: start on mousedown on empty canvas (not on units)
+  const panDidMove = useRef(false);
+
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const target = e.target;
     const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect' || target.attrs.id?.startsWith('grid-');
     if (isEmptySpace && activeTool === 'select' && !isRecording) {
       isPanning.current = true;
+      panDidMove.current = false;
       const stage = stageRef.current;
       if (stage) {
         const pointer = stage.getPointerPosition()!;
@@ -168,6 +171,9 @@ const MapCanvas: React.FC = () => {
     const pointer = stage.getPointerPosition()!;
     const dx = pointer.x - panStart.current.x;
     const dy = pointer.y - panStart.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      panDidMove.current = true;
+    }
     setStagePosition({
       x: panStart.current.stageX + dx,
       y: panStart.current.stageY + dy,
@@ -176,6 +182,10 @@ const MapCanvas: React.FC = () => {
 
   const handleStageMouseUp = () => {
     if (isPanning.current) {
+      // If we didn't actually move, treat as a click to deselect
+      if (!panDidMove.current) {
+        setSelectedIds([]);
+      }
       isPanning.current = false;
       panStart.current = null;
       const stage = stageRef.current;
@@ -184,7 +194,10 @@ const MapCanvas: React.FC = () => {
   };
 
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (e.target === e.target.getStage() || e.target.attrs.id === 'bg-rect') {
+    // Deselect handled in mouseUp to avoid conflict with pan
+    const target = e.target;
+    const isEmptySpace = target === target.getStage() || target.attrs.id === 'bg-rect';
+    if (isEmptySpace && !panDidMove.current) {
       setSelectedIds([]);
     }
   };
