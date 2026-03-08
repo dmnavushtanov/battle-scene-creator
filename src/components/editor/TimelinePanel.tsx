@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, ChevronRight, ChevronDown } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
-import type { NarrationEvent, OverlayEvent } from '@/domain/models';
+import type { NarrationEvent, OverlayEvent, UnitEffect } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
 
 const EFFECT_COLORS: Record<string, string> = {
@@ -34,6 +34,8 @@ const TimelinePanel: React.FC = () => {
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
 
   const [timelineZoom, setTimelineZoom] = useState(1);
+  const [timeframeLocked, setTimeframeLocked] = useState(false);
+  const [expandedEffects, setExpandedEffects] = useState<Record<string, boolean>>({});
 
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
@@ -82,13 +84,41 @@ const TimelinePanel: React.FC = () => {
     return () => { if (playRef.current) cancelAnimationFrame(playRef.current); };
   }, [isPlaying]);
 
-  const units = activeScene.objectOrder
+  // Sort units: grouped units first (sorted by group), then ungrouped
+  const allUnits = activeScene.objectOrder
     .map((id) => activeScene.objectsById[id])
     .filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
 
+  const groups = activeScene.groups || {};
+  const groupList = Object.values(groups);
+
+  const sortedUnits = React.useMemo(() => {
+    const grouped: typeof allUnits = [];
+    const ungrouped: typeof allUnits = [];
+    const unitsByGroup: Record<string, typeof allUnits> = {};
+
+    for (const unit of allUnits) {
+      const group = groupList.find((g) => g.memberIds.includes(unit.id));
+      if (group) {
+        if (!unitsByGroup[group.id]) unitsByGroup[group.id] = [];
+        unitsByGroup[group.id].push(unit);
+      } else {
+        ungrouped.push(unit);
+      }
+    }
+
+    // Add grouped units in group order
+    for (const group of groupList) {
+      if (unitsByGroup[group.id]) {
+        grouped.push(...unitsByGroup[group.id]);
+      }
+    }
+
+    return [...grouped, ...ungrouped];
+  }, [allUnits, groupList]);
+
   const narrationEvents = activeScene.narrationEvents || [];
   const overlayEvents = activeScene.overlayEvents || [];
-  const groups = activeScene.groups || {};
 
   const handleAddNarration = () => {
     const lastEnd = narrationEvents.reduce((max, n) => Math.max(max, n.startTime + n.duration), 0);
@@ -111,6 +141,10 @@ const TimelinePanel: React.FC = () => {
       textPosition: 'below-image', transition: 'fade',
     };
     addOverlay(event);
+  };
+
+  const toggleEffectExpanded = (unitId: string) => {
+    setExpandedEffects((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
   };
 
   /** Generic drag handler for moving/resizing timeline blocks */
@@ -189,10 +223,20 @@ const TimelinePanel: React.FC = () => {
     );
   };
 
+  // Group effects by type for a unit
+  const getEffectsByType = (unitEffects: UnitEffect[]): Record<string, UnitEffect[]> => {
+    const byType: Record<string, UnitEffect[]> = {};
+    for (const eff of unitEffects) {
+      if (!byType[eff.type]) byType[eff.type] = [];
+      byType[eff.type].push(eff);
+    }
+    return byType;
+  };
+
   return (
     <div className="bg-timeline border-t border-border flex flex-col h-full">
-      {/* Controls bar - fixed at top, never scrolls */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-10">
+      {/* Controls bar */}
+      <div className={`flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-20 ${timeframeLocked ? 'sticky top-0' : ''}`}>
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
         <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -201,8 +245,21 @@ const TimelinePanel: React.FC = () => {
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
         <div className="flex-1" />
+        {/* Lock timeframe toggle */}
+        <button
+          onClick={() => setTimeframeLocked(!timeframeLocked)}
+          className={`p-1.5 rounded transition-colors flex items-center gap-1 text-[9px] font-mono uppercase border ${
+            timeframeLocked
+              ? 'bg-primary/20 text-primary border-primary/50'
+              : 'text-muted-foreground hover:text-foreground border-border'
+          }`}
+          title={timeframeLocked ? 'Unlock timeframe (ruler scrolls with content)' : 'Lock timeframe (ruler stays visible)'}
+        >
+          {timeframeLocked ? <Lock size={10} /> : <Unlock size={10} />}
+          {timeframeLocked ? 'Locked' : 'Lock'}
+        </button>
         {/* Timeline zoom controls */}
-        <div className="flex items-center gap-1 border border-border rounded px-1">
+        <div className="flex items-center gap-1 border border-border rounded px-1 ml-1">
           <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
             <ZoomOut size={12} />
           </button>
@@ -217,7 +274,7 @@ const TimelinePanel: React.FC = () => {
       {/* Timeline tracks - scrollable area */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
-        <div className="relative h-5 mb-1 cursor-pointer" onClick={handleTimelineClick} style={{ width: timelineWidth }}>
+        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline' : ''}`} onClick={handleTimelineClick} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
           )}
@@ -306,70 +363,121 @@ const TimelinePanel: React.FC = () => {
           })}
         </div>
 
-        {/* Unit tracks - with effects inline on each unit's track */}
-        {units.slice(0, 20).map((unit) => {
+        {/* Unit tracks - sorted by group, with collapsible effect sub-rows */}
+        {sortedUnits.slice(0, 50).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
           const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
-          const group = Object.values(groups).find((g) => g.memberIds.includes(unit.id));
+          const group = groupList.find((g) => g.memberIds.includes(unit.id));
+          const isEffectsExpanded = expandedEffects[unit.id] || false;
+          const effectsByType = getEffectsByType(unitEffects);
+          const effectTypes = Object.keys(effectsByType);
+          const hasEffects = unitEffects.length > 0;
 
           return (
-            <div
-              key={unit.id}
-              className={`relative h-6 mb-0.5 rounded-sm border cursor-pointer ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
-              style={{ width: timelineWidth }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (e.shiftKey) {
-                  setSelectedIds(selectedIds.includes(unit.id) ? selectedIds.filter((id) => id !== unit.id) : [...selectedIds, unit.id]);
-                } else {
-                  setSelectedIds([unit.id]);
-                }
-              }}
-            >
-              <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
-                {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
-                {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
-                {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
-              </span>
-              {/* Keyframe markers */}
-              {unitKfs.map((kf, idx) => (
-                <div key={`kf-${idx}`} className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none" style={{ left: kf.time * pxPerMs - 6 }} title={`t=${formatTime(kf.time)}`} />
-              ))}
-              {/* Effect blocks inline on the unit track */}
-              {unitEffects.map((eff) => {
-                const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
-                const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
-                const effLeft = eff.startTime * pxPerMs;
-                const effWidth = Math.max(eff.duration * pxPerMs, 16);
+            <div key={unit.id} className="mb-0.5">
+              {/* Main unit row */}
+              <div
+                className={`relative h-6 rounded-sm border cursor-pointer ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
+                style={{
+                  width: timelineWidth,
+                  borderLeftWidth: group ? 3 : undefined,
+                  borderLeftColor: group ? group.color : undefined,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (e.shiftKey) {
+                    setSelectedIds(selectedIds.includes(unit.id) ? selectedIds.filter((id) => id !== unit.id) : [...selectedIds, unit.id]);
+                  } else {
+                    setSelectedIds([unit.id]);
+                  }
+                }}
+              >
+                <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
+                  {/* Expand/collapse effects toggle */}
+                  {hasEffects && (
+                    <button
+                      className="pointer-events-auto text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={(e) => { e.stopPropagation(); toggleEffectExpanded(unit.id); }}
+                    >
+                      {isEffectsExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    </button>
+                  )}
+                  {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
+                  {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
+                  {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
+                </span>
+                {/* Keyframe markers */}
+                {unitKfs.map((kf, idx) => (
+                  <div key={`kf-${idx}`} className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none" style={{ left: kf.time * pxPerMs - 6 }} title={`t=${formatTime(kf.time)}`} />
+                ))}
+                {/* Compact effect dots when collapsed */}
+                {!isEffectsExpanded && unitEffects.map((eff) => {
+                  const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                  return (
+                    <div
+                      key={eff.id}
+                      className="absolute top-2.5 w-2 h-2 rounded-full pointer-events-none"
+                      style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }}
+                      title={`${eff.type} @ ${formatTime(eff.startTime)}`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Expanded effect sub-rows grouped by type */}
+              {isEffectsExpanded && effectTypes.map((effType) => {
+                const effs = effectsByType[effType];
+                const preset = EFFECT_PRESETS.find((p) => p.type === effType);
+                const effColor = EFFECT_COLORS[effType] || '#ff6600';
                 return (
-                  <TimelineBlock
-                    key={eff.id}
-                    left={effLeft}
-                    width={effWidth}
-                    label={`${preset?.icon || '?'} ${preset?.label || eff.type}`}
-                    sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
-                    isSelected={isSelected}
-                    bgColor={effColor + '55'}
-                    borderColor={effColor}
-                    onClick={(e) => { e.stopPropagation(); setSelectedIds([unit.id]); }}
-                    onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)}
-                    onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)}
-                    onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)}
-                  />
+                  <div
+                    key={`${unit.id}-${effType}`}
+                    className="relative h-5 rounded-sm border border-border/50 ml-4"
+                    style={{
+                      width: timelineWidth - 16,
+                      borderLeftWidth: 2,
+                      borderLeftColor: effColor,
+                      backgroundColor: effColor + '08',
+                    }}
+                  >
+                    <span className="absolute left-1 top-0 text-[8px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
+                      {preset?.icon || '?'} {preset?.label || effType}
+                    </span>
+                    {effs.map((eff) => {
+                      const effLeft = eff.startTime * pxPerMs;
+                      const effWidth = Math.max(eff.duration * pxPerMs, 16);
+                      return (
+                        <TimelineBlock
+                          key={eff.id}
+                          left={effLeft}
+                          width={effWidth}
+                          label={`${preset?.icon || '?'} ${formatTime(eff.startTime)}`}
+                          sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
+                          isSelected={isSelected}
+                          bgColor={effColor + '55'}
+                          borderColor={effColor}
+                          onClick={(e) => { e.stopPropagation(); setSelectedIds([unit.id]); }}
+                          onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                          onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                          onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                        />
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
           );
         })}
 
-        {units.length === 0 && (
+        {sortedUnits.length === 0 && (
           <div className="text-center py-4 text-[10px] font-mono text-muted-foreground">
             Add units to see timeline tracks
           </div>
