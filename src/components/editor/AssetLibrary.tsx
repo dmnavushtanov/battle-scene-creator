@@ -4,7 +4,7 @@ import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
 import type { UnitType, MapObject } from '@/domain/models';
 import { ImageIcon, Trash2, Sparkles, GripVertical } from 'lucide-react';
-import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
+import { EFFECT_PRESETS } from '@/domain/services/effects';
 
 const MAX_ICON_KB = 200;
 const ICON_RENDER_SIZE = 50;
@@ -27,6 +27,10 @@ function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
   });
 }
 
+const EFFECT_COLORS: Record<string, string> = {
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+};
+
 type Tab = 'units' | 'effects';
 
 const AssetLibrary: React.FC = () => {
@@ -38,9 +42,6 @@ const AssetLibrary: React.FC = () => {
   const customIcons = useEditorStore((s) => s.customIcons);
   const addCustomIcon = useEditorStore((s) => s.addCustomIcon);
   const removeCustomIcon = useEditorStore((s) => s.removeCustomIcon);
-  const selectedIds = useEditorStore((s) => s.selectedIds);
-  const currentTime = useEditorStore((s) => s.currentTime);
-  const addEffect = useEditorStore((s) => s.addEffect);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
@@ -93,15 +94,6 @@ const AssetLibrary: React.FC = () => {
     };
     reader.readAsDataURL(file);
     if (iconInputRef.current) iconInputRef.current.value = '';
-  };
-
-  const handleAddEffectPreset = (presetIndex: number) => {
-    if (selectedIds.length === 0) return;
-    const preset = EFFECT_PRESETS[presetIndex];
-    const effect = createEffectFromPreset(preset, currentTime);
-    for (const id of selectedIds) {
-      addEffect(id, { ...effect, id: uuid() });
-    }
   };
 
   const handleEffectDragStart = (e: React.DragEvent, presetIndex: number) => {
@@ -180,26 +172,24 @@ const AssetLibrary: React.FC = () => {
             Effect Presets
           </p>
           <p className="text-[9px] font-mono text-muted-foreground/60 mb-3">
-            {selectedIds.length === 0
-              ? '🎯 Drag an effect onto the map to place it, or select a unit first'
-              : `✅ Click to apply to ${selectedIds.length} selected unit(s) · or drag onto map`}
+            🎯 Drag onto a unit or empty map space to place
           </p>
           <div className="space-y-1.5">
             {EFFECT_PRESETS.map((preset, idx) => (
-              <button
+              <div
                 key={preset.type}
-                onClick={() => handleAddEffectPreset(idx)}
                 draggable
                 onDragStart={(e) => handleEffectDragStart(e, idx)}
                 className="w-full flex items-center gap-3 p-2.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
+                style={{ borderLeftColor: EFFECT_COLORS[preset.type] || '#ff6600', borderLeftWidth: 3 }}
               >
                 <GripVertical size={10} className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                 <span className="text-lg">{preset.icon}</span>
                 <div className="text-left flex-1">
                   <p className="text-[10px] font-mono font-semibold text-foreground group-hover:text-primary transition-colors">{preset.label}</p>
-                  <p className="text-[8px] font-mono text-muted-foreground">{preset.description} · {preset.defaultDuration}ms{preset.persistent && ' · persistent'}</p>
+                  <p className="text-[8px] font-mono text-muted-foreground">{preset.description} · {(preset.defaultDuration / 1000).toFixed(1)}s{preset.persistent && ' · persistent'}</p>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>

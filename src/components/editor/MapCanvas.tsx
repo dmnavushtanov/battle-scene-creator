@@ -20,6 +20,10 @@ const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
   explosion: '💥', shake: '〰️', crack: '⚡', blood: '🩸', smoke: '💨', fire: '🔥',
 };
 
+const EFFECT_COLORS: Record<string, string> = {
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+};
+
 const customIconCache = new Map<string, HTMLImageElement>();
 
 function useCustomIconCache(sources: string[]) {
@@ -62,7 +66,6 @@ const MapCanvas: React.FC = () => {
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const lastDragPos = useRef<{ x: number; y: number } | null>(null);
   const isPanning = useRef(false);
-  const panButton = useRef<number>(0);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string } | null>(null);
 
@@ -142,14 +145,11 @@ const MapCanvas: React.FC = () => {
     [stageScale, stagePosition, setStageScale, setStagePosition]
   );
 
-  const panDidMove = useRef(false);
-
   // Middle-button panning only
   const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button === 1) {
       e.evt.preventDefault();
       isPanning.current = true;
-      panDidMove.current = false;
       const stage = stageRef.current;
       if (stage) {
         const pointer = stage.getPointerPosition()!;
@@ -166,7 +166,6 @@ const MapCanvas: React.FC = () => {
     const pointer = stage.getPointerPosition()!;
     const dx = pointer.x - panStart.current.x;
     const dy = pointer.y - panStart.current.y;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panDidMove.current = true;
     setStagePosition({ x: panStart.current.stageX + dx, y: panStart.current.stageY + dy });
   };
 
@@ -179,17 +178,21 @@ const MapCanvas: React.FC = () => {
     }
   };
 
-  // Left-click on empty space = deselect
+  // Left-click on empty space = deselect everything
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0) return;
+    if (isPanning.current) return;
     const target = e.target;
     const stage = stageRef.current;
-    // Check if we clicked the stage itself or the background rect or a grid line
-    const isStage = target === stage;
-    const isBgRect = target.attrs?.id === 'bg-rect';
-    const isGrid = typeof target.attrs?.id === 'string' && target.attrs.id.startsWith('grid-');
-    if (isStage || isBgRect || isGrid) {
-      setSelectedIds([]);
+    // Click hit the Stage itself, the bg rect, or passed through non-listening grid lines
+    const isEmptySpace = target === stage || target.attrs?.id === 'bg-rect';
+    if (isEmptySpace) {
+      // Clear ALL selections: units, narrations, overlays
+      useEditorStore.setState({
+        selectedIds: [],
+        selectedNarrationId: null,
+        selectedOverlayId: null,
+      });
       setContextMenu(null);
     }
   };
@@ -245,6 +248,7 @@ const MapCanvas: React.FC = () => {
     if (hitUnit) {
       const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
       addEffect(hitUnit.id, effect);
+      setSelectedIds([hitUnit.id]);
     } else {
       const obj = {
         id: uuid(),
@@ -399,8 +403,8 @@ const MapCanvas: React.FC = () => {
 
             const group = getGroupForObject(unit.id);
 
-            // Get static effects for standalone effect label
-            const staticEffects = isStandaloneEffect ? (activeScene.effectsByObjectId[unit.id] || []) : [];
+            // Get static effects for standalone effect label & effect badge on units
+            const staticEffects = activeScene.effectsByObjectId[unit.id] || [];
 
             return (
               <Group
@@ -455,18 +459,35 @@ const MapCanvas: React.FC = () => {
                         <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
                       </>
                     )}
+                    {/* Effect indicator badges on units (always visible) */}
+                    {staticEffects.length > 0 && (
+                      <>
+                        {staticEffects.slice(0, 3).map((eff, i) => {
+                          const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                          return (
+                            <React.Fragment key={eff.id}>
+                              <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={effColor} opacity={0.85} listening={false} />
+                              <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
+                            </React.Fragment>
+                          );
+                        })}
+                        {staticEffects.length > 3 && (
+                          <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
+                        )}
+                      </>
+                    )}
                   </>
                 )}
 
                 {/* Standalone effect placeholder - improved visuals */}
                 {isStandaloneEffect && (
                   <>
-                    <Circle x={0} y={0} radius={size * 0.4} fill="#ff660015" stroke="#ff660066" strokeWidth={1.5} dash={[4, 3]} listening={true} />
+                    <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
                     <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
-                    <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#ff8844" align="center" listening={false} />
+                    <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={EFFECT_COLORS[unit.effectType || ''] || '#ff8844'} align="center" listening={false} />
                     {/* Show timing info */}
                     {staticEffects.length > 0 && (
-                      <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill="#ff884488" align="center" listening={false} />
+                      <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff8844') + '88'} align="center" listening={false} />
                     )}
                   </>
                 )}
