@@ -100,6 +100,8 @@ const MapCanvas: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);
   const addEffect = useEditorStore((s) => s.addEffect);
   const addToGroup = useEditorStore((s) => s.addToGroup);
+  const batchAddKeyframes = useEditorStore((s) => s.batchAddKeyframes);
+  const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
