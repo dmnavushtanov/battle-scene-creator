@@ -656,6 +656,46 @@ const MapCanvas: React.FC = () => {
               </Group>
             );
           })}
+          {/* Animated arrows — progressive reveal during playback */}
+          {animatedArrows.map((d) => {
+            if (!d.points || d.points.length < 4) return null;
+            const color = d.factionColor || d.color || '#d4a843';
+            const isSelected = selectedIds.includes(d.id);
+            const startT = d.animStartTime ?? 0;
+            const endT = d.animEndTime ?? 1000;
+            const duration = Math.max(endT - startT, 1);
+            const progress = (isPlaying || Object.keys(derivedTransforms).length > 0)
+              ? Math.max(0, Math.min(1, (currentTime - startT) / duration))
+              : 1;
+            if (progress <= 0 && isPlaying) return null;
+            const showProgress = progress <= 0 ? 1 : progress; // Show full when before start in edit mode
+            const pts = d.points;
+            const x1 = pts[0], y1 = pts[1], x2 = pts[2], y2 = pts[3];
+            const ex = x1 + (x2 - x1) * showProgress;
+            const ey = y1 + (y2 - y1) * showProgress;
+            return (
+              <Group key={d.id}
+                onClick={(e) => {
+                  e.cancelBubble = true;
+                  if (e.evt.shiftKey) {
+                    setSelectedIds(selectedIds.includes(d.id) ? selectedIds.filter((id) => id !== d.id) : [...selectedIds, d.id]);
+                  } else {
+                    setSelectedIds([d.id]);
+                  }
+                }}
+                onContextMenu={(e) => handleObjectContextMenu(d.id, e)}
+              >
+                <Arrow points={[x1, y1, ex, ey]} stroke="#000000" strokeWidth={5} opacity={0.4} pointerLength={14} pointerWidth={12} lineCap="round" lineJoin="round" />
+                <Arrow points={[x1, y1, ex, ey]} stroke={color} strokeWidth={3} pointerLength={12} pointerWidth={10} fill={color} lineCap="round" lineJoin="round" opacity={0.9} />
+                {isSelected && (
+                  <Arrow points={[x1, y1, x2, y2]} stroke="#ffffff" strokeWidth={1} dash={[4, 4]} pointerLength={10} pointerWidth={8} opacity={0.4} listening={false} />
+                )}
+                {!isPlaying && (
+                  <Text x={x1} y={y1 - 16} text={`▶ ${((endT - startT) / 1000).toFixed(1)}s`} fontSize={9} fontFamily="JetBrains Mono, monospace" fill={color} opacity={0.7} listening={false} />
+                )}
+              </Group>
+            );
+          })}
           {drawingArrow && (
             <Arrow points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]} stroke="#d4a843" strokeWidth={3} dash={[10, 6]} pointerLength={12} pointerWidth={10} fill="#d4a843" opacity={0.6} listening={false} />
           )}
