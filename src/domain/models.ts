@@ -7,6 +7,7 @@ export interface MapObject {
   type: 'unit' | 'drawing' | 'effect';
   unitType?: UnitType;
   label?: string;
+  customIcon?: string; // data URL for user-uploaded icon
   x: number;
   y: number;
   rotation: number;

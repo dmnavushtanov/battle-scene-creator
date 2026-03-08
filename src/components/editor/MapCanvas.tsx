@@ -1,7 +1,18 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
+
+const UNIT_SYMBOLS: Record<string, string> = {
+  infantry: '⚔',
+  cavalry: '🐎',
+  armor: '⬣',
+  artillery: '💣',
+  naval: '⚓',
+  air: '✈',
+  hq: '★',
+  supply: '📦',
+};
 
 const UNIT_LABELS: Record<string, string> = {
   infantry: 'INF',
@@ -16,13 +27,68 @@ const UNIT_LABELS: Record<string, string> = {
 
 const UNIT_COLOR = '#d4a843';
 
+/** Hook to load an image from a URL/dataURL and return the HTMLImageElement */
+function useLoadedImage(src: string | undefined): HTMLImageElement | null {
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!src) { setImg(null); return; }
+    const image = new window.Image();
+    image.src = src;
+    image.onload = () => setImg(image);
+    return () => { image.onload = null; };
+  }, [src]);
+  return img;
+}
+
+/** Cached image store for custom icons */
+const imageCache = new Map<string, HTMLImageElement>();
+
+function getCachedImage(src: string): HTMLImageElement | null {
+  if (imageCache.has(src)) return imageCache.get(src)!;
+  const img = new window.Image();
+  img.src = src;
+  img.onload = () => imageCache.set(src, img);
+  return imageCache.get(src) || null;
+}
+
+/** Component for rendering a unit's custom icon on Konva */
+const CustomIconImage: React.FC<{ src: string; size: number }> = ({ src, size }) => {
+  const [img, setImg] = useState<HTMLImageElement | null>(() => getCachedImage(src));
+
+  useEffect(() => {
+    if (imageCache.has(src)) {
+      setImg(imageCache.get(src)!);
+      return;
+    }
+    const image = new window.Image();
+    image.src = src;
+    image.onload = () => {
+      imageCache.set(src, image);
+      setImg(image);
+    };
+  }, [src]);
+
+  if (!img) return null;
+
+  const padding = 4;
+  const innerSize = size - padding * 2;
+  return (
+    <KImage
+      image={img}
+      x={-innerSize / 2}
+      y={-innerSize / 2}
+      width={innerSize}
+      height={innerSize}
+    />
+  );
+};
+
 const MapCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [dims, setDims] = React.useState({ width: 800, height: 600 });
   const [bgImage, setBgImage] = React.useState<HTMLImageElement | null>(null);
 
-  // Track drag delta for group movement
   const lastDragPos = useRef<{ x: number; y: number } | null>(null);
 
   const activeScene = useEditorStore((s) => {
@@ -50,7 +116,11 @@ const MapCanvas: React.FC = () => {
   const objectOrder = activeScene.objectOrder;
   const backgroundImage = activeScene.backgroundImage;
 
-  // Resize handler
+  // Expose stageRef for video export
+  useEffect(() => {
+    (window as any).__konvaStageRef = stageRef;
+  }, []);
+
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
@@ -65,7 +135,6 @@ const MapCanvas: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load background image
   useEffect(() => {
     if (!backgroundImage) {
       setBgImage(null);
@@ -116,17 +185,12 @@ const MapCanvas: React.FC = () => {
     const x = e.target.x();
     const y = e.target.y();
     const prev = lastDragPos.current;
-
-    // Move the lead object
     onObjectDragMove(id, x, y);
-
-    // Move other selected objects by the same delta (group move)
     if (prev && selectedIds.includes(id) && selectedIds.length > 1) {
       const dx = x - prev.x;
       const dy = y - prev.y;
       onGroupDragMove(id, dx, dy);
     }
-
     lastDragPos.current = { x, y };
   };
 
@@ -137,12 +201,11 @@ const MapCanvas: React.FC = () => {
     lastDragPos.current = null;
   };
 
-  // Use derivedTransforms for rendering when scrubbing or playing (not during recording)
   const getObjectTransform = (id: string) => {
     if (!isRecording && derivedTransforms[id]) {
       return derivedTransforms[id];
     }
-    return null; // use object's own position
+    return null;
   };
 
   const units = objectOrder
@@ -155,12 +218,10 @@ const MapCanvas: React.FC = () => {
 
   return (
     <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative">
-      {/* Coordinates overlay */}
       <div className="absolute top-2 right-2 z-10 px-2 py-1 bg-panel/90 border border-border rounded text-[10px] font-mono text-muted-foreground">
         {Math.round(stageScale * 100)}% | {objectOrder.length} objects
       </div>
 
-      {/* Recording indicator */}
       {isRecording && (
         <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-destructive/20 border border-destructive/50 rounded text-[10px] font-mono text-destructive flex items-center gap-2 animate-pulse">
           <div className="w-2 h-2 rounded-full bg-destructive" />
@@ -181,7 +242,6 @@ const MapCanvas: React.FC = () => {
         onClick={handleStageClick}
         onTap={handleStageClick}
       >
-        {/* Background Layer */}
         <Layer>
           <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" />
           {bgImage && <KImage image={bgImage} x={0} y={0} width={1920} height={1080} />}
@@ -193,7 +253,6 @@ const MapCanvas: React.FC = () => {
           ))}
         </Layer>
 
-        {/* Drawings Layer */}
         <Layer>
           {drawings.map((d) => {
             if (d.points && d.points.length >= 4) {
@@ -205,7 +264,6 @@ const MapCanvas: React.FC = () => {
           })}
         </Layer>
 
-        {/* Units Layer */}
         <Layer>
           {units.map((unit) => {
             const isSelected = selectedIds.includes(unit.id);
@@ -219,6 +277,8 @@ const MapCanvas: React.FC = () => {
             const uvis = derived ? derived.visible : unit.visible;
 
             if (!uvis) return null;
+
+            const hasCustomIcon = !!unit.customIcon;
 
             return (
               <Group
@@ -270,18 +330,36 @@ const MapCanvas: React.FC = () => {
                   strokeWidth={2}
                   cornerRadius={4}
                 />
-                {/* Unit label */}
-                <Text
-                  x={-size / 2}
-                  y={-6}
-                  width={size}
-                  text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'}
-                  fontSize={13}
-                  fontFamily="JetBrains Mono, monospace"
-                  fontStyle="bold"
-                  fill={UNIT_COLOR}
-                  align="center"
-                />
+
+                {/* Custom uploaded icon */}
+                {hasCustomIcon && <CustomIconImage src={unit.customIcon!} size={size} />}
+
+                {/* Default: emoji symbol + label */}
+                {!hasCustomIcon && (
+                  <>
+                    <Text
+                      x={-size / 2}
+                      y={-size / 2 + 4}
+                      width={size}
+                      text={UNIT_SYMBOLS[unit.unitType || 'infantry'] || '?'}
+                      fontSize={size * 0.4}
+                      align="center"
+                      fill={UNIT_COLOR}
+                    />
+                    <Text
+                      x={-size / 2}
+                      y={size / 2 - 14}
+                      width={size}
+                      text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'}
+                      fontSize={9}
+                      fontFamily="JetBrains Mono, monospace"
+                      fontStyle="bold"
+                      fill={UNIT_COLOR}
+                      align="center"
+                    />
+                  </>
+                )}
+
                 {/* Top-right dot */}
                 <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
               </Group>
