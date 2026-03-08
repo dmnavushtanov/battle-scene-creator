@@ -472,6 +472,7 @@ const MapCanvas: React.FC = () => {
   }
 
   const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
+  const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
   const builtInIconSources = Object.values(UNIT_ICON_URLS);
   const allIconSources = [...customIconSources, ...builtInIconSources];
   const iconImages = useImageCache(allIconSources);
