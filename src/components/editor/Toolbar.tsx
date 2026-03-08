@@ -6,10 +6,6 @@ import Konva from 'konva';
 import {
   MousePointer2,
   MoveRight,
-  Minus,
-  Pencil,
-  Square,
-  Circle,
   Trash2,
   Download,
   Upload,
@@ -22,10 +18,6 @@ import {
 const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string }[] = [
   { tool: 'select', icon: <MousePointer2 size={16} />, label: 'Select' },
   { tool: 'arrow', icon: <MoveRight size={16} />, label: 'Arrow' },
-  { tool: 'line', icon: <Minus size={16} />, label: 'Line' },
-  { tool: 'freehand', icon: <Pencil size={16} />, label: 'Draw' },
-  { tool: 'rectangle', icon: <Square size={16} />, label: 'Rect' },
-  { tool: 'circle', icon: <Circle size={16} />, label: 'Circle' },
 ];
 
 const Toolbar: React.FC = () => {
