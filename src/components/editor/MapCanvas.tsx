@@ -308,14 +308,7 @@ const MapCanvas: React.FC = () => {
   };
 
   const handleAddUnitAtCursor = (unitType: UnitType) => {
-    if (!contextMenu || !stageRef.current || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const stageX = (contextMenu.x - (stagePosition.x - rect.left + rect.left)) / stageScale;
-    const stageY = (contextMenu.y - (stagePosition.y - rect.top + rect.top)) / stageScale;
-    // Recalculate from the menu position
-    const sx = (contextMenu.x - stagePosition.x % containerRef.current.offsetWidth) / stageScale;
-    const sy = (contextMenu.y - stagePosition.y % containerRef.current.offsetHeight) / stageScale;
-    // Simpler: use contextMenu pixel pos
+    if (!contextMenu) return;
     const cx = (contextMenu.x - stagePosition.x) / stageScale;
     const cy = (contextMenu.y - stagePosition.y) / stageScale;
     const category = UNIT_CATEGORY[unitType] || 'military';

@@ -97,12 +97,17 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
                 textY = n.customY || 100;
               }
 
+              // Build font string once
+              const fontWeight = n.fontStyle === 'bold' ? 'bold ' : '';
+              const fontItalic = n.fontStyle === 'italic' ? 'italic ' : '';
+              const font = `${fontWeight}${fontItalic}${n.fontSize}px monospace`;
+
               ctx.save();
               ctx.globalAlpha = opacity;
+              ctx.font = font;
 
               // Draw background
               if (n.bgOpacity > 0) {
-                ctx.font = `${n.fontStyle === 'bold' ? 'bold ' : ''}${n.fontStyle === 'italic' ? 'italic ' : ''}${n.fontSize}px monospace`;
                 const metrics = ctx.measureText(displayText);
                 const textWidth = metrics.width;
                 const padding = 12;
@@ -111,7 +116,6 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
               }
 
               // Draw text
-              ctx.font = `${n.fontStyle === 'bold' ? 'bold ' : ''}${n.fontStyle === 'italic' ? 'italic ' : ''}${n.fontSize}px monospace`;
               ctx.fillStyle = n.textColor;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
