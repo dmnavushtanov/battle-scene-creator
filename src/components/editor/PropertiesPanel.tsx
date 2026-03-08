@@ -1,9 +1,9 @@
 import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
+import { EFFECT_COLORS } from '@/domain/constants';
 import { Trash2 } from 'lucide-react';
 import { formatTime } from '@/domain/formatters';
-import { EFFECT_COLORS } from '@/domain/constants';
 import KeyframeEditor from './properties/KeyframeEditor';
 import NarrationEditor from './properties/NarrationEditor';
 import OverlayEditor from './properties/OverlayEditor';
@@ -26,6 +26,7 @@ const PropertiesPanel: React.FC = () => {
   const addEffect = useEditorStore((s) => s.addEffect);
   const removeEffect = useEditorStore((s) => s.removeEffect);
   const clearEffects = useEditorStore((s) => s.clearEffects);
+  const updateEffect = useEditorStore((s) => s.updateEffect);
 
   if (selectedNarrationId) return <NarrationEditor />;
   if (selectedOverlayId) return <OverlayEditor />;
@@ -97,12 +98,29 @@ const PropertiesPanel: React.FC = () => {
               {singleEffects.map((eff) => {
                 const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
                 const isHighlighted = selectedEffectId?.objectId === single.id && selectedEffectId?.effectId === eff.id;
+                const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
                 return (
-                  <div key={eff.id} className={`flex items-center gap-2 p-1.5 rounded border text-[9px] font-mono ${isHighlighted ? 'bg-primary/20 border-primary/50' : 'bg-muted/50 border-border'}`}>
-                    <span>{preset?.icon || '?'}</span>
-                    <span className="flex-1 text-foreground">{preset?.label || eff.type} @ {formatTime(eff.startTime)}</span>
-                    <span className="text-muted-foreground">{(eff.duration / 1000).toFixed(1)}s</span>
-                    <button onClick={() => removeEffect(single.id, eff.id)} className="text-destructive hover:text-destructive/80 transition-colors"><Trash2 size={10} /></button>
+                  <div key={eff.id} className={`p-1.5 rounded border text-[9px] font-mono space-y-1.5 ${isHighlighted ? 'bg-primary/20 border-primary/50' : 'bg-muted/50 border-border'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: effColor }} />
+                      <span>{preset?.icon || '?'}</span>
+                      <span className="flex-1 text-foreground">{preset?.label || eff.type}</span>
+                      <button onClick={() => removeEffect(single.id, eff.id)} className="text-destructive hover:text-destructive/80 transition-colors"><Trash2 size={10} /></button>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[8px] font-mono text-muted-foreground">Start (s)</label>
+                        <input type="number" step={0.1} min={0} value={+(eff.startTime / 1000).toFixed(2)} onChange={(e) => updateEffect(single.id, eff.id, { startTime: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-1.5 py-0.5 text-[9px] font-mono text-foreground" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[8px] font-mono text-muted-foreground">Duration (s)</label>
+                        <input type="number" step={0.1} min={0.1} value={+(eff.duration / 1000).toFixed(2)} onChange={(e) => updateEffect(single.id, eff.id, { duration: Math.max(100, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-1.5 py-0.5 text-[9px] font-mono text-foreground" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[8px] font-mono text-muted-foreground">Intensity</label>
+                        <input type="number" step={0.1} min={0.1} max={5} value={eff.intensity} onChange={(e) => updateEffect(single.id, eff.id, { intensity: Number(e.target.value) })} className="w-full bg-muted border border-border rounded px-1.5 py-0.5 text-[9px] font-mono text-foreground" />
+                      </div>
+                    </div>
                   </div>
                 );
               })}
