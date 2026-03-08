@@ -59,6 +59,7 @@ export interface EditorState {
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
   selectedKeyframeIndex: { objectId: string; index: number } | null;
+  selectedEffectId: { objectId: string; effectId: string } | null;
 
   // Scene helpers
   getActiveScene: () => Scene;
@@ -90,6 +91,7 @@ export interface EditorState {
   removeKeyframe: (objectId: string, index: number) => void;
   updateKeyframe: (objectId: string, index: number, updates: Partial<Keyframe>) => void;
   setSelectedKeyframeIndex: (sel: { objectId: string; index: number } | null) => void;
+  setSelectedEffectId: (sel: { objectId: string; effectId: string } | null) => void;
 
   // Effects
   addEffect: (objectId: string, effect: UnitEffect) => void;
@@ -176,6 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selectedNarrationId: null,
     selectedOverlayId: null,
     selectedKeyframeIndex: null,
+    selectedEffectId: null,
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
@@ -323,6 +326,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     setSelectedKeyframeIndex: (sel) => set({ selectedKeyframeIndex: sel }),
+    setSelectedEffectId: (sel) => set({ selectedEffectId: sel }),
 
     // Effects CRUD
     addEffect: (objectId, effect) => {

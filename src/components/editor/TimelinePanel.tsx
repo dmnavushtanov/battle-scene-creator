@@ -62,6 +62,7 @@ const TimelinePanel: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = Math.max(0, Math.min(totalDuration, x / pxPerMs));
+    if (isPlaying) setIsPlaying(false);
     seekTo(time);
   };
 
@@ -553,15 +554,20 @@ const TimelinePanel: React.FC = () => {
                   );
                 })}
 
-                {/* Effect dots inline — colored dot at startTime only, no duration */}
+                {/* Effect dots inline — colored dot at startTime, clickable */}
                 {unitEffects.map((eff) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
                   return (
                     <div
                       key={eff.id}
-                      className="absolute top-2.5 w-2 h-2 rounded-full pointer-events-none"
-                      style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }}
+                      className="absolute top-1.5 w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-primary/50 z-10"
+                      style={{ left: eff.startTime * pxPerMs - 6, backgroundColor: effColor }}
                       title={`${eff.type} @ ${formatTime(eff.startTime)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIds([unit.id]);
+                        useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
+                      }}
                     />
                   );
                 })}
