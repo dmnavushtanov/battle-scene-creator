@@ -323,7 +323,6 @@ const TimelinePanel: React.FC = () => {
         <Tooltip><TooltipTrigger asChild>
         <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to end</p></TooltipContent></Tooltip>
-        <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
 

@@ -485,10 +485,11 @@ const MapCanvas: React.FC = () => {
     if (sids.length !== 1) return 'Select exactly 1 unit to draw a path';
     const unit = objectsById[sids[0]];
     const unitName = unit?.label || unit?.unitType || 'Unit';
+    const durLabel = `Path duration: ${recordDurationSeconds}s (change in toolbar)`;
     if (pathPoints.length === 0) {
-      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel`;
+      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel · ${durLabel}`;
     }
-    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel`;
+    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add, Right-click: save, Esc: cancel · ${durLabel}`;
   };
 
   // Context menu sub-menu state
