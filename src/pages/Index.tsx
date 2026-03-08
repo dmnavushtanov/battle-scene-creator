@@ -158,20 +158,26 @@ const Index: React.FC = () => {
           <NarrationOverlay />
         </div>
 
-        <button
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
-          title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
-          className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
-            rightPanelOpen ? 'right-56 rounded-l-md border-r-0' : 'right-0 rounded-l-md'
-          }`}
-        >
-          {rightPanelOpen ? <PanelRightClose size={14} className="mx-auto" /> : <PanelRightOpen size={14} className="mx-auto" />}
-        </button>
-
         {rightPanelOpen && (
-          <div className="w-56 flex-shrink-0">
+          <div className="w-64 flex-shrink-0 relative">
+            <button
+              onClick={() => setRightPanelOpen(false)}
+              title="Hide properties panel"
+              className="absolute top-1/2 -translate-y-1/2 -left-6 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
+            >
+              <PanelRightClose size={14} className="mx-auto" />
+            </button>
             <PropertiesPanel />
           </div>
+        )}
+        {!rightPanelOpen && (
+          <button
+            onClick={() => setRightPanelOpen(true)}
+            title="Show properties panel"
+            className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
+          >
+            <PanelRightOpen size={14} className="mx-auto" />
+          </button>
         )}
       </div>
 

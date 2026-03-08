@@ -251,17 +251,74 @@ const TimelinePanel: React.FC = () => {
                   title={`t=${formatTime(kf.time)}`}
                 />
               ))}
-              {/* Effect markers */}
+              {/* Effect markers - clickable + resizable */}
               {unitEffects.map((eff) => {
                 const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
+                const effLeft = eff.startTime * pxPerMs;
+                const effWidth = Math.max(eff.duration * pxPerMs, 12);
                 return (
                   <div
                     key={eff.id}
-                    className="absolute top-1 h-4 bg-destructive/20 border border-destructive/30 rounded-sm pointer-events-none flex items-center justify-center"
-                    style={{ left: eff.startTime * pxPerMs, width: Math.max(eff.duration * pxPerMs, 8) }}
-                    title={`${preset?.label || eff.type} @ ${formatTime(eff.startTime)}`}
+                    className="absolute top-1 h-4 bg-destructive/20 border border-destructive/30 rounded-sm flex items-center justify-center cursor-pointer hover:bg-destructive/30 group/eff"
+                    style={{ left: effLeft, width: effWidth }}
+                    title={`${preset?.label || eff.type} @ ${formatTime(eff.startTime)} — drag edges to resize`}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <span className="text-[7px]">{preset?.icon || '?'}</span>
+                    <span className="text-[7px] pointer-events-none">{preset?.icon || '?'}</span>
+                    {/* Left resize handle */}
+                    <div
+                      className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-l-sm"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const startX = e.clientX;
+                        const origStart = eff.startTime;
+                        const origDur = eff.duration;
+                        const onMove = (me: MouseEvent) => {
+                          const dx = me.clientX - startX;
+                          const dtMs = dx / pxPerMs;
+                          const newStart = Math.max(0, origStart + dtMs);
+                          const newDur = Math.max(100, origDur - (newStart - origStart));
+                          useEditorStore.getState()._updateActiveScene((s) => ({
+                            ...s,
+                            effectsByObjectId: {
+                              ...s.effectsByObjectId,
+                              [unit.id]: (s.effectsByObjectId[unit.id] || []).map((ef) =>
+                                ef.id === eff.id ? { ...ef, startTime: newStart, duration: newDur } : ef
+                              ),
+                            },
+                          }));
+                        };
+                        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+                        window.addEventListener('mousemove', onMove);
+                        window.addEventListener('mouseup', onUp);
+                      }}
+                    />
+                    {/* Right resize handle */}
+                    <div
+                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-r-sm"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        const startX = e.clientX;
+                        const origDur = eff.duration;
+                        const onMove = (me: MouseEvent) => {
+                          const dx = me.clientX - startX;
+                          const dtMs = dx / pxPerMs;
+                          const newDur = Math.max(100, origDur + dtMs);
+                          useEditorStore.getState()._updateActiveScene((s) => ({
+                            ...s,
+                            effectsByObjectId: {
+                              ...s.effectsByObjectId,
+                              [unit.id]: (s.effectsByObjectId[unit.id] || []).map((ef) =>
+                                ef.id === eff.id ? { ...ef, duration: newDur } : ef
+                              ),
+                            },
+                          }));
+                        };
+                        const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+                        window.addEventListener('mousemove', onMove);
+                        window.addEventListener('mouseup', onUp);
+                      }}
+                    />
                   </div>
                 );
               })}
