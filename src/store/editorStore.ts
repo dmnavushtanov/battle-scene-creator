@@ -241,7 +241,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...s,
         keyframesByObjectId: updatedKeyframes,
       }));
-      set({ isRecording: false, recordingSession: null });
+      // Advance playhead to end of recorded segment so next recording appends
+      const newTime = recordingSession.startTime + recordingSession.durationMs;
+      set({ isRecording: false, recordingSession: null, currentTime: newTime });
+      get().computeDerivedTransforms(newTime);
     },
 
     onObjectDragStart: (id) => {
