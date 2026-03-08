@@ -629,17 +629,20 @@ const MapCanvas: React.FC = () => {
                   </>
                 )}
 
-                {/* Standalone effect placeholder - improved visuals */}
-                {isStandaloneEffect && (
+                {/* Standalone effect placeholder - hidden during playback, only show effects */}
+                {isStandaloneEffect && !isPlaying && (
                   <>
                     <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
                     <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
                     <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={EFFECT_COLORS[unit.effectType || ''] || '#ff8844'} align="center" listening={false} />
-                    {/* Show timing info */}
                     {staticEffects.length > 0 && (
                       <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff8844') + '88'} align="center" listening={false} />
                     )}
                   </>
+                )}
+                {/* During playback, standalone effects need a minimal hit area */}
+                {isStandaloneEffect && isPlaying && (
+                  <Circle x={0} y={0} radius={size * 0.4} fill="transparent" listening={false} />
                 )}
 
                 {/* === EFFECT OVERLAYS === */}
