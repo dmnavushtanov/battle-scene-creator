@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES } from './UnitIcon';
 import type { UnitType, MapObject } from '@/domain/models';
-import { ImageIcon, Trash2, Sparkles, GripVertical } from 'lucide-react';
+import { ImageIcon, Trash2, Sparkles, GripVertical, Volume2 } from 'lucide-react';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
 
 const MAX_ICON_KB = 200;
@@ -31,7 +31,7 @@ const EFFECT_COLORS: Record<string, string> = {
   explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
 };
 
-type Tab = 'units' | 'effects';
+type Tab = 'units' | 'effects' | 'sounds';
 
 const AssetLibrary: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('units');
@@ -42,8 +42,11 @@ const AssetLibrary: React.FC = () => {
   const customIcons = useEditorStore((s) => s.customIcons);
   const addCustomIcon = useEditorStore((s) => s.addCustomIcon);
   const removeCustomIcon = useEditorStore((s) => s.removeCustomIcon);
+  const addSound = useEditorStore((s) => s.addSound);
+  const currentTime = useEditorStore((s) => s.currentTime);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
+  const soundInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddUnit = (unitType: UnitType) => {
     const obj: MapObject = {
@@ -96,8 +99,56 @@ const AssetLibrary: React.FC = () => {
     if (iconInputRef.current) iconInputRef.current.value = '';
   };
 
+  const handleSoundUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const audioUrl = reader.result as string;
+      const label = file.name.replace(/\.[^.]+$/, '').slice(0, 20);
+      // Try to get duration from audio
+      const audio = new Audio(audioUrl);
+      audio.onloadedmetadata = () => {
+        const duration = Math.round(audio.duration * 1000) || 3000;
+        addSound({
+          id: uuid(),
+          startTime: currentTime,
+          duration,
+          audioUrl,
+          label,
+          volume: 1,
+        });
+      };
+      audio.onerror = () => {
+        addSound({
+          id: uuid(),
+          startTime: currentTime,
+          duration: 3000,
+          audioUrl,
+          label,
+          volume: 1,
+        });
+      };
+    };
+    reader.readAsDataURL(file);
+    if (soundInputRef.current) soundInputRef.current.value = '';
+  };
+
   const handleEffectDragStart = (e: React.DragEvent, presetIndex: number) => {
     e.dataTransfer.setData('application/effect-preset', String(presetIndex));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleUnitDragStart = (e: React.DragEvent, unitType: UnitType) => {
+    e.dataTransfer.setData('application/unit-type', unitType);
+    e.dataTransfer.setData('application/unit-label', unitType);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleCustomUnitDragStart = (e: React.DragEvent, iconDataUrl: string, label: string) => {
+    e.dataTransfer.setData('application/unit-type', 'infantry');
+    e.dataTransfer.setData('application/unit-label', label);
+    e.dataTransfer.setData('application/custom-icon', iconDataUrl);
     e.dataTransfer.effectAllowed = 'copy';
   };
 
@@ -115,6 +166,9 @@ const AssetLibrary: React.FC = () => {
         <button onClick={() => setActiveTab('effects')} className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${activeTab === 'effects' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground'}`}>
           <Sparkles size={10} /> Effects
         </button>
+        <button onClick={() => setActiveTab('sounds')} className={`flex-1 py-2 text-[10px] font-mono uppercase tracking-wider transition-colors flex items-center justify-center gap-1 ${activeTab === 'sounds' ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Volume2 size={10} /> Sound
+        </button>
       </div>
 
       {activeTab === 'units' && (
@@ -127,10 +181,17 @@ const AssetLibrary: React.FC = () => {
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
           </div>
           <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Units</p>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Units</p>
+            <p className="text-[8px] font-mono text-muted-foreground/60 mb-2">Click to add or drag onto canvas</p>
             <div className="grid grid-cols-2 gap-2">
               {UNIT_TYPES.map((u) => (
-                <button key={u.type} onClick={() => handleAddUnit(u.type)} className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group">
+                <button
+                  key={u.type}
+                  onClick={() => handleAddUnit(u.type)}
+                  draggable
+                  onDragStart={(e) => handleUnitDragStart(e, u.type)}
+                  className="flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
+                >
                   <UnitIcon unitType={u.type} size={32} />
                   <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground">{u.label}</span>
                 </button>
@@ -142,7 +203,12 @@ const AssetLibrary: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   {customIcons.map((icon) => (
                     <div key={icon.id} className="relative group">
-                      <button onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)} className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors">
+                      <button
+                        onClick={() => handleAddCustomUnit(icon.dataUrl, icon.label)}
+                        draggable
+                        onDragStart={(e) => handleCustomUnitDragStart(e, icon.dataUrl, icon.label)}
+                        className="w-full flex flex-col items-center gap-1.5 p-2 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-grab active:cursor-grabbing"
+                      >
                         <img src={icon.dataUrl} alt={icon.label} className="w-8 h-8 object-contain" />
                         <span className="text-[9px] font-mono uppercase text-muted-foreground group-hover:text-foreground truncate w-full text-center">{icon.label}</span>
                       </button>
@@ -192,6 +258,33 @@ const AssetLibrary: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'sounds' && (
+        <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
+          <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+            Sound Files
+          </p>
+          <p className="text-[9px] font-mono text-muted-foreground/60 mb-3">
+            🔊 Upload audio files to add to the timeline
+          </p>
+          <button
+            onClick={() => soundInputRef.current?.click()}
+            className="w-full py-3 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
+          >
+            <Volume2 size={14} /> Upload Sound File
+          </button>
+          <p className="text-[8px] font-mono text-muted-foreground/60 mt-1.5 text-center">
+            MP3, WAV, OGG, WebM audio supported
+          </p>
+          <input
+            ref={soundInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleSoundUpload}
+            className="hidden"
+          />
         </div>
       )}
     </div>

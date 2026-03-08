@@ -330,15 +330,9 @@ const MapCanvas: React.FC = () => {
     return null;
   };
 
-  // Drag-and-drop handler for effects from sidebar
+  // Drag-and-drop handler for effects AND units from sidebar
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const effectData = e.dataTransfer.getData('application/effect-preset');
-    if (!effectData) return;
-    const presetIndex = parseInt(effectData, 10);
-    if (isNaN(presetIndex)) return;
-    const preset = EFFECT_PRESETS[presetIndex];
-    if (!preset) return;
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -347,6 +341,42 @@ const MapCanvas: React.FC = () => {
     const rect = container.getBoundingClientRect();
     const stageX = (e.clientX - rect.left - stagePosition.x) / stageScale;
     const stageY = (e.clientY - rect.top - stagePosition.y) / stageScale;
+
+    // Handle unit drops
+    const unitData = e.dataTransfer.getData('application/unit-type');
+    if (unitData) {
+      const customIconData = e.dataTransfer.getData('application/custom-icon');
+      const labelData = e.dataTransfer.getData('application/unit-label');
+      const obj: MapObject = {
+        id: uuid(),
+        type: 'unit',
+        unitType: unitData as any,
+        label: labelData || unitData,
+        customIcon: customIconData || undefined,
+        x: stageX,
+        y: stageY,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        layer: 'units',
+        visible: true,
+        locked: false,
+        width: 50,
+        height: 50,
+      };
+      addObject(obj);
+      useEditorStore.getState().setActiveTool('select');
+      setSelectedIds([obj.id]);
+      return;
+    }
+
+    // Handle effect drops
+    const effectData = e.dataTransfer.getData('application/effect-preset');
+    if (!effectData) return;
+    const presetIndex = parseInt(effectData, 10);
+    if (isNaN(presetIndex)) return;
+    const preset = EFFECT_PRESETS[presetIndex];
+    if (!preset) return;
 
     const hitUnit = objectOrder.map((id) => objectsById[id]).filter((o) => o?.type === 'unit').find((u) => {
       const s = (u.width || 50) / 2;
@@ -629,17 +659,20 @@ const MapCanvas: React.FC = () => {
                   </>
                 )}
 
-                {/* Standalone effect placeholder - improved visuals */}
-                {isStandaloneEffect && (
+                {/* Standalone effect placeholder - hidden during playback, only show effects */}
+                {isStandaloneEffect && !isPlaying && (
                   <>
                     <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
                     <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
                     <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={EFFECT_COLORS[unit.effectType || ''] || '#ff8844'} align="center" listening={false} />
-                    {/* Show timing info */}
                     {staticEffects.length > 0 && (
                       <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff8844') + '88'} align="center" listening={false} />
                     )}
                   </>
+                )}
+                {/* During playback, standalone effects need a minimal hit area */}
+                {isStandaloneEffect && isPlaying && (
+                  <Circle x={0} y={0} radius={size * 0.4} fill="transparent" listening={false} />
                 )}
 
                 {/* === EFFECT OVERLAYS === */}

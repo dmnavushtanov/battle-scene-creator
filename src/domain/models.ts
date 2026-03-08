@@ -79,6 +79,15 @@ export interface OverlayEvent {
   transition: OverlayTransition;
 }
 
+export interface SoundEvent {
+  id: string;
+  startTime: number;
+  duration: number;
+  audioUrl: string;
+  label: string;
+  volume: number;
+}
+
 export interface UnitGroup {
   id: string;
   name: string;
@@ -97,6 +106,7 @@ export interface Scene {
   effectsByObjectId: Record<string, UnitEffect[]>;
   narrationEvents: NarrationEvent[];
   overlayEvents: OverlayEvent[];
+  soundEvents: SoundEvent[];
   groups: Record<string, UnitGroup>;
 }
 
