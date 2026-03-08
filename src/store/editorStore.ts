@@ -178,6 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selectedNarrationId: null,
     selectedOverlayId: null,
     selectedKeyframeIndex: null,
+    selectedEffectId: null,
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
