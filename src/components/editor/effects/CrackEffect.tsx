@@ -7,6 +7,10 @@ interface CrackEffectProps {
   effects: ActiveEffect[];
 }
 
+/**
+ * Shattered glass effect: radiating lines from a central impact point
+ * with triangular shard edges and white highlight lines for refraction.
+ */
 const CrackEffect: React.FC<CrackEffectProps> = ({ size, effects }) => {
   const crackEffect = effects.find((e) => e.type === 'crack');
   if (!crackEffect) return null;
@@ -14,54 +18,98 @@ const CrackEffect: React.FC<CrackEffectProps> = ({ size, effects }) => {
   const s2 = size / 2;
   const op = crackEffect.ended ? 0.9 : Math.min(1, crackEffect.progress * 2);
 
-  const cracks: { points: number[]; w: number; shade: string }[] = [
-    { points: [0, -s2 * 0.1, -2, 0, 1, s2 * 0.2, -1, s2 * 0.55], w: 2.2, shade: '#888' },
-    { points: [-2, 0, -s2 * 0.35, -s2 * 0.15, -s2 * 0.5, -s2 * 0.3], w: 1.5, shade: '#999' },
-    { points: [-2, 0, s2 * 0.25, -s2 * 0.1, s2 * 0.45, -s2 * 0.25], w: 1.3, shade: '#aaa' },
-    { points: [1, s2 * 0.2, s2 * 0.3, s2 * 0.35, s2 * 0.5, s2 * 0.28], w: 1.4, shade: '#999' },
-    { points: [1, s2 * 0.2, -s2 * 0.2, s2 * 0.4, -s2 * 0.35, s2 * 0.55], w: 1.1, shade: '#aaa' },
-    { points: [-s2 * 0.35, -s2 * 0.15, -s2 * 0.55, -s2 * 0.4], w: 0.7, shade: '#777' },
-    { points: [s2 * 0.45, -s2 * 0.25, s2 * 0.55, -s2 * 0.45], w: 0.6, shade: '#777' },
-    { points: [0, -s2 * 0.1, s2 * 0.1, -s2 * 0.35, s2 * 0.2, -s2 * 0.55], w: 1.0, shade: '#bbb' },
+  // Main radiating crack lines from center impact
+  const mainCracks: { points: number[]; w: number }[] = [
+    { points: [0, 0, -s2 * 0.3, -s2 * 0.6, -s2 * 0.5, -s2 * 0.85], w: 2.0 },
+    { points: [0, 0, s2 * 0.4, -s2 * 0.5, s2 * 0.55, -s2 * 0.8], w: 1.8 },
+    { points: [0, 0, -s2 * 0.55, s2 * 0.3, -s2 * 0.8, s2 * 0.5], w: 1.6 },
+    { points: [0, 0, s2 * 0.5, s2 * 0.4, s2 * 0.75, s2 * 0.6], w: 1.5 },
+    { points: [0, 0, s2 * 0.1, -s2 * 0.7, s2 * 0.05, -s2 * 0.9], w: 1.4 },
+    { points: [0, 0, -s2 * 0.6, -s2 * 0.1, -s2 * 0.85, 0], w: 1.3 },
+    { points: [0, 0, s2 * 0.65, -s2 * 0.05, s2 * 0.9, s2 * 0.05], w: 1.2 },
+    { points: [0, 0, -s2 * 0.1, s2 * 0.65, -s2 * 0.15, s2 * 0.85], w: 1.1 },
+    { points: [0, 0, s2 * 0.2, s2 * 0.6, s2 * 0.3, s2 * 0.85], w: 1.0 },
+  ];
+
+  // Secondary branch cracks connecting main lines to form triangular shards
+  const branchCracks: { points: number[]; w: number }[] = [
+    { points: [-s2 * 0.3, -s2 * 0.6, s2 * 0.1, -s2 * 0.7], w: 0.8 },
+    { points: [s2 * 0.4, -s2 * 0.5, s2 * 0.1, -s2 * 0.7], w: 0.7 },
+    { points: [-s2 * 0.55, s2 * 0.3, -s2 * 0.1, s2 * 0.65], w: 0.7 },
+    { points: [s2 * 0.5, s2 * 0.4, s2 * 0.2, s2 * 0.6], w: 0.6 },
+    { points: [-s2 * 0.6, -s2 * 0.1, -s2 * 0.55, s2 * 0.3], w: 0.6 },
+    { points: [s2 * 0.65, -s2 * 0.05, s2 * 0.5, s2 * 0.4], w: 0.5 },
+    { points: [-s2 * 0.5, -s2 * 0.85, -s2 * 0.3, -s2 * 0.6], w: 0.5 },
+    { points: [s2 * 0.55, -s2 * 0.8, s2 * 0.65, -s2 * 0.05], w: 0.5 },
+    { points: [-s2 * 0.8, s2 * 0.5, -s2 * 0.15, s2 * 0.85], w: 0.4 },
+    { points: [s2 * 0.75, s2 * 0.6, s2 * 0.3, s2 * 0.85], w: 0.4 },
+  ];
+
+  // White highlight lines for glass refraction effect
+  const highlights: { points: number[]; w: number }[] = [
+    { points: [0, 0, -s2 * 0.28, -s2 * 0.58], w: 0.5 },
+    { points: [0, 0, s2 * 0.38, -s2 * 0.48], w: 0.5 },
+    { points: [0, 0, s2 * 0.08, -s2 * 0.68], w: 0.4 },
+    { points: [-s2 * 0.3, -s2 * 0.6, s2 * 0.08, -s2 * 0.68], w: 0.3 },
   ];
 
   return (
     <>
-      {/* Shadow layer */}
-      {cracks.slice(0, 5).map((c, i) => (
+      {/* Drop shadow for depth */}
+      {mainCracks.map((c, i) => (
         <Line
-          key={`cs-${i}`}
-          points={c.points.map((p, j) => p + (j % 2 === 0 ? 0.8 : 0.8))}
+          key={`shadow-${i}`}
+          points={c.points.map((p, j) => p + (j % 2 === 0 ? 1 : 1))}
           stroke="#00000066"
-          strokeWidth={c.w + 1}
-          opacity={op * 0.4}
+          strokeWidth={c.w + 1.5}
+          opacity={op * 0.3}
           lineCap="round"
           lineJoin="round"
           listening={false}
         />
       ))}
-      {/* Main crack lines */}
-      {cracks.map((c, i) => (
+
+      {/* Main crack lines — dark gray */}
+      {mainCracks.map((c, i) => (
         <Line
-          key={`c-${i}`}
+          key={`main-${i}`}
           points={c.points}
-          stroke={c.shade}
+          stroke="#666666"
           strokeWidth={c.w}
-          opacity={op * (1 - i * 0.05)}
+          opacity={op * (1 - i * 0.03)}
           lineCap="round"
           lineJoin="round"
           listening={false}
         />
       ))}
-      {/* Highlight */}
-      <Line
-        points={[0, -s2 * 0.1, -2, 0, 1, s2 * 0.2]}
-        stroke="#ffffff44"
-        strokeWidth={0.5}
-        opacity={op * 0.3}
-        lineCap="round"
-        listening={false}
-      />
+
+      {/* Branch cracks — lighter gray */}
+      {branchCracks.map((c, i) => (
+        <Line
+          key={`branch-${i}`}
+          points={c.points}
+          stroke="#999999"
+          strokeWidth={c.w}
+          opacity={op * 0.8}
+          lineCap="round"
+          lineJoin="round"
+          listening={false}
+        />
+      ))}
+
+      {/* White highlight refraction lines */}
+      {highlights.map((c, i) => (
+        <Line
+          key={`highlight-${i}`}
+          points={c.points}
+          stroke="#ffffff"
+          strokeWidth={c.w}
+          opacity={op * 0.25}
+          lineCap="round"
+          lineJoin="round"
+          listening={false}
+        />
+      ))}
     </>
   );
 };

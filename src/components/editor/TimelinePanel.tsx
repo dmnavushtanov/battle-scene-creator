@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, ChevronRight, ChevronDown, Volume2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, Volume2, ChevronRight, ChevronDown } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
-import type { NarrationEvent, OverlayEvent, UnitEffect, SoundEvent } from '@/domain/models';
-import { EFFECT_PRESETS } from '@/domain/services/effects';
+import type { NarrationEvent, OverlayEvent, SoundEvent } from '@/domain/models';
 import { EFFECT_COLORS } from '@/domain/constants';
 import { formatTime } from '@/domain/formatters';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -46,15 +51,12 @@ const TimelinePanel: React.FC = () => {
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
-  const [expandedEffects, setExpandedEffects] = useState<Record<string, boolean>>({});
   const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
   const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
 
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
-
-  // formatTime is now imported from @/domain/formatters
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -91,7 +93,6 @@ const TimelinePanel: React.FC = () => {
     return () => { if (playRef.current) cancelAnimationFrame(playRef.current); };
   }, [isPlaying]);
 
-  // Separate units and standalone effects
   const allObjects = activeScene.objectOrder
     .map((id) => activeScene.objectsById[id])
     .filter(Boolean);
@@ -102,7 +103,6 @@ const TimelinePanel: React.FC = () => {
   const groups = activeScene.groups || {};
   const groupList = Object.values(groups);
 
-  // Sort units by group
   const sortedUnits = React.useMemo(() => {
     const grouped: typeof unitObjects = [];
     const ungrouped: typeof unitObjects = [];
@@ -127,7 +127,7 @@ const TimelinePanel: React.FC = () => {
     return [...grouped, ...ungrouped];
   }, [unitObjects, groupList]);
 
-  // Group standalone effects by effect type
+  // Standalone effects grouped by type
   const standaloneEffectsByType = React.useMemo(() => {
     const byType: Record<string, typeof standaloneEffects> = {};
     for (const eff of standaloneEffects) {
@@ -143,6 +143,11 @@ const TimelinePanel: React.FC = () => {
   const narrationEvents = activeScene.narrationEvents || [];
   const overlayEvents = activeScene.overlayEvents || [];
   const soundEvents = activeScene.soundEvents || [];
+
+  // Track visibility: show only if has events
+  const hasNarration = narrationEvents.length > 0;
+  const hasOverlay = overlayEvents.length > 0;
+  const hasSound = soundEvents.length > 0;
 
   const handleAddNarration = () => {
     const lastEnd = narrationEvents.reduce((max, n) => Math.max(max, n.startTime + n.duration), 0);
@@ -167,8 +172,14 @@ const TimelinePanel: React.FC = () => {
     addOverlay(event);
   };
 
-  const toggleEffectExpanded = (unitId: string) => {
-    setExpandedEffects((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
+  const handleAddSound = () => {
+    const lastEnd = soundEvents.reduce((max, s) => Math.max(max, s.startTime + s.duration), 0);
+    const startAt = lastEnd > currentTime ? lastEnd + 100 : currentTime;
+    const event: SoundEvent = {
+      id: uuid(), startTime: startAt, duration: 2000,
+      audioUrl: '', label: 'Sound', volume: 1,
+    };
+    useEditorStore.getState().addSound(event);
   };
 
   const toggleStandaloneEffectExpanded = (effType: string) => {
@@ -204,7 +215,7 @@ const TimelinePanel: React.FC = () => {
     window.addEventListener('mouseup', onUp);
   };
 
-  /** Keyframe drag handler for adjusting time */
+  /** Keyframe drag handler */
   const makeKeyframeDragHandler = (objectId: string, kfIndex: number, origTime: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
     const startX = e.clientX;
@@ -219,7 +230,7 @@ const TimelinePanel: React.FC = () => {
     window.addEventListener('mouseup', onUp);
   };
 
-  /** Render a timeline block with move + resize handles */
+  /** Reusable timeline block with move + resize handles */
   const TimelineBlock: React.FC<{
     left: number;
     width: number;
@@ -266,16 +277,6 @@ const TimelinePanel: React.FC = () => {
     );
   };
 
-  // Group effects by type for a unit
-  const getEffectsByType = (unitEffects: UnitEffect[]): Record<string, UnitEffect[]> => {
-    const byType: Record<string, UnitEffect[]> = {};
-    for (const eff of unitEffects) {
-      if (!byType[eff.type]) byType[eff.type] = [];
-      byType[eff.type].push(eff);
-    }
-    return byType;
-  };
-
   const confirmDeleteTrack = () => {
     if (deleteTrackId) {
       removeObject(deleteTrackId);
@@ -295,7 +296,32 @@ const TimelinePanel: React.FC = () => {
         <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
+
         <div className="flex-1" />
+
+        {/* Add track dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-1.5 rounded transition-colors flex items-center gap-1 text-[9px] font-mono uppercase border text-muted-foreground hover:text-foreground border-border"
+              title="Add track"
+            >
+              <Plus size={10} /> Track
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[140px]">
+            <DropdownMenuItem onClick={handleAddNarration} className="text-xs font-mono">
+              📝 Narration
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleAddOverlay} className="text-xs font-mono">
+              🖼️ Overlay
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleAddSound} className="text-xs font-mono">
+              🔊 Sound
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {/* Lock timeframe toggle */}
         <button
           onClick={() => setTimeframeLocked(!timeframeLocked)}
@@ -304,12 +330,13 @@ const TimelinePanel: React.FC = () => {
               ? 'bg-primary/20 text-primary border-primary/50'
               : 'text-muted-foreground hover:text-foreground border-border'
           }`}
-          title={timeframeLocked ? 'Unlock timeframe (ruler scrolls with content)' : 'Lock timeframe (ruler stays visible)'}
+          title={timeframeLocked ? 'Unlock timeframe' : 'Lock timeframe'}
         >
           {timeframeLocked ? <Lock size={10} /> : <Unlock size={10} />}
           {timeframeLocked ? 'Locked' : 'Lock'}
         </button>
-        {/* Timeline zoom controls */}
+
+        {/* Zoom controls */}
         <div className="flex items-center gap-1 border border-border rounded px-1 ml-1">
           <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
             <ZoomOut size={12} />
@@ -322,7 +349,7 @@ const TimelinePanel: React.FC = () => {
         <span className="text-[10px] font-mono text-muted-foreground ml-2">{totalKeyframes} kf</span>
       </div>
 
-      {/* Timeline tracks - scrollable area */}
+      {/* Timeline tracks */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
         <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline' : ''}`} onClick={handleTimelineClick} style={{ width: timelineWidth }}>
@@ -338,126 +365,127 @@ const TimelinePanel: React.FC = () => {
           <div className="absolute top-0 w-0.5 h-full bg-playhead z-10" style={{ left: currentTime * pxPerMs }} />
         </div>
 
-        {/* Narration track */}
-        <div className="relative h-6 mb-0.5 rounded-sm border border-accent/30 bg-accent/5" style={{ width: timelineWidth }}>
-          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-accent/70 uppercase pointer-events-none flex items-center gap-1">
-            📝 Narr
-          </span>
-          <button onClick={(e) => { e.stopPropagation(); handleAddNarration(); }}
-            className="absolute right-1 top-0.5 text-accent/70 hover:text-accent transition-colors z-10"
-            title="Add narration">
-            <Plus size={12} />
-          </button>
-          {narrationEvents.map((n) => {
-            const isSelected = selectedNarrationId === n.id;
-            return (
+        {/* Narration track — only shown when has events */}
+        {hasNarration && (
+          <div className="relative h-6 mb-0.5 rounded-sm border border-accent/30 bg-accent/5" style={{ width: timelineWidth }}>
+            <span className="absolute left-1 top-0.5 text-[9px] font-mono text-accent/70 uppercase pointer-events-none flex items-center gap-1">
+              📝 Narr
+            </span>
+            <button onClick={(e) => { e.stopPropagation(); handleAddNarration(); }}
+              className="absolute right-1 top-0.5 text-accent/70 hover:text-accent transition-colors z-10"
+              title="Add narration">
+              <Plus size={12} />
+            </button>
+            {narrationEvents.map((n) => {
+              const isSelected = selectedNarrationId === n.id;
+              return (
+                <TimelineBlock
+                  key={n.id}
+                  left={n.startTime * pxPerMs}
+                  width={n.duration * pxPerMs}
+                  label={n.text?.slice(0, 15) || '...'}
+                  sublabel={`${(n.duration / 1000).toFixed(1)}s`}
+                  isSelected={isSelected}
+                  colorClass="bg-accent/40"
+                  borderClass="border-accent"
+                  onClick={(e) => { e.stopPropagation(); setSelectedNarrationId(n.id); }}
+                  onDelete={(e) => { e.stopPropagation(); removeNarration(n.id); }}
+                  onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                    useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                  }, n.startTime, n.duration)}
+                  onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                    useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                  }, n.startTime, n.duration)}
+                  onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                    useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
+                  }, n.startTime, n.duration)}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Overlay track — only shown when has events */}
+        {hasOverlay && (
+          <div className="relative h-6 mb-0.5 rounded-sm border border-secondary/30 bg-secondary/5" style={{ width: timelineWidth }}>
+            <span className="absolute left-1 top-0.5 text-[9px] font-mono text-secondary-foreground/70 uppercase pointer-events-none flex items-center gap-1">
+              🖼️ Ovrl
+            </span>
+            <button onClick={(e) => { e.stopPropagation(); handleAddOverlay(); }}
+              className="absolute right-1 top-0.5 text-secondary-foreground/70 hover:text-secondary-foreground transition-colors z-10"
+              title="Add overlay">
+              <Plus size={12} />
+            </button>
+            {overlayEvents.map((o) => {
+              const isSelected = selectedOverlayId === o.id;
+              return (
+                <TimelineBlock
+                  key={o.id}
+                  left={o.startTime * pxPerMs}
+                  width={o.duration * pxPerMs}
+                  label={o.title || 'Overlay'}
+                  sublabel={`${(o.duration / 1000).toFixed(1)}s`}
+                  isSelected={isSelected}
+                  colorClass="bg-secondary/40"
+                  borderClass="border-secondary"
+                  onClick={(e) => { e.stopPropagation(); setSelectedOverlayId(o.id); }}
+                  onDelete={(e) => { e.stopPropagation(); removeOverlay(o.id); }}
+                  onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                    useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                  }, o.startTime, o.duration)}
+                  onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                    useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                  }, o.startTime, o.duration)}
+                  onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                    useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
+                  }, o.startTime, o.duration)}
+                />
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sound track — only shown when has events */}
+        {hasSound && (
+          <div className="relative h-6 mb-0.5 rounded-sm border border-primary/30 bg-primary/5" style={{ width: timelineWidth }}>
+            <span className="absolute left-1 top-0.5 text-[9px] font-mono text-primary/70 uppercase pointer-events-none flex items-center gap-1">
+              <Volume2 size={9} /> Sound
+            </span>
+            {soundEvents.map((snd) => (
               <TimelineBlock
-                key={n.id}
-                left={n.startTime * pxPerMs}
-                width={n.duration * pxPerMs}
-                label={n.text?.slice(0, 15) || '...'}
-                sublabel={`${(n.duration / 1000).toFixed(1)}s`}
-                isSelected={isSelected}
-                colorClass="bg-accent/40"
-                borderClass="border-accent"
-                onClick={(e) => { e.stopPropagation(); setSelectedNarrationId(n.id); }}
-                onDelete={(e) => { e.stopPropagation(); removeNarration(n.id); }}
+                key={snd.id}
+                left={snd.startTime * pxPerMs}
+                width={snd.duration * pxPerMs}
+                label={snd.label}
+                sublabel={`${(snd.duration / 1000).toFixed(1)}s`}
+                isSelected={false}
+                bgColor="#d4a84355"
+                borderColor="#d4a843"
+                onClick={(e) => { e.stopPropagation(); }}
+                onDelete={(e) => { e.stopPropagation(); removeSound(snd.id); }}
                 onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
-                }, n.startTime, n.duration)}
+                  useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+                }, snd.startTime, snd.duration)}
                 onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
-                }, n.startTime, n.duration)}
+                  useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+                }, snd.startTime, snd.duration)}
                 onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                  useEditorStore.getState().updateNarration(n.id, { startTime: st, duration: dur });
-                }, n.startTime, n.duration)}
+                  useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+                }, snd.startTime, snd.duration)}
               />
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Overlay track */}
-        <div className="relative h-6 mb-0.5 rounded-sm border border-secondary/30 bg-secondary/5" style={{ width: timelineWidth }}>
-          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-secondary-foreground/70 uppercase pointer-events-none flex items-center gap-1">
-            🖼️ Ovrl
-          </span>
-          <button onClick={(e) => { e.stopPropagation(); handleAddOverlay(); }}
-            className="absolute right-1 top-0.5 text-secondary-foreground/70 hover:text-secondary-foreground transition-colors z-10"
-            title="Add overlay">
-            <Plus size={12} />
-          </button>
-          {overlayEvents.map((o) => {
-            const isSelected = selectedOverlayId === o.id;
-            return (
-              <TimelineBlock
-                key={o.id}
-                left={o.startTime * pxPerMs}
-                width={o.duration * pxPerMs}
-                label={o.title || 'Overlay'}
-                sublabel={`${(o.duration / 1000).toFixed(1)}s`}
-                isSelected={isSelected}
-                colorClass="bg-secondary/40"
-                borderClass="border-secondary"
-                onClick={(e) => { e.stopPropagation(); setSelectedOverlayId(o.id); }}
-                onDelete={(e) => { e.stopPropagation(); removeOverlay(o.id); }}
-                onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
-                }, o.startTime, o.duration)}
-                onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
-                }, o.startTime, o.duration)}
-                onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                  useEditorStore.getState().updateOverlay(o.id, { startTime: st, duration: dur });
-                }, o.startTime, o.duration)}
-              />
-            );
-          })}
-        </div>
-
-        {/* Sound track */}
-        <div className="relative h-6 mb-0.5 rounded-sm border border-primary/30 bg-primary/5" style={{ width: timelineWidth }}>
-          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-primary/70 uppercase pointer-events-none flex items-center gap-1">
-            <Volume2 size={9} /> Sound
-          </span>
-          {soundEvents.map((snd) => (
-            <TimelineBlock
-              key={snd.id}
-              left={snd.startTime * pxPerMs}
-              width={snd.duration * pxPerMs}
-              label={snd.label}
-              sublabel={`${(snd.duration / 1000).toFixed(1)}s`}
-              isSelected={false}
-              bgColor="#d4a84355"
-              borderColor="#d4a843"
-              onClick={(e) => { e.stopPropagation(); }}
-              onDelete={(e) => { e.stopPropagation(); removeSound(snd.id); }}
-              onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
-              }, snd.startTime, snd.duration)}
-              onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
-              }, snd.startTime, snd.duration)}
-              onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
-              }, snd.startTime, snd.duration)}
-            />
-          ))}
-        </div>
-
-        {/* Unit tracks - sorted by group */}
+        {/* Unit tracks */}
         {sortedUnits.slice(0, 50).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
           const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
           const group = groupList.find((g) => g.memberIds.includes(unit.id));
-          const isEffectsExpanded = expandedEffects[unit.id] || false;
-          const effectsByType = getEffectsByType(unitEffects);
-          const effectTypes = Object.keys(effectsByType);
-          const hasEffects = unitEffects.length > 0;
 
           return (
             <div key={unit.id} className="mb-0.5">
-              {/* Main unit row */}
               <div
                 className={`relative h-6 rounded-sm border cursor-pointer group ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
                 style={{
@@ -475,15 +503,6 @@ const TimelinePanel: React.FC = () => {
                 }}
               >
                 <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
-                  {/* Expand/collapse effects toggle */}
-                  {hasEffects && (
-                    <button
-                      className="pointer-events-auto text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={(e) => { e.stopPropagation(); toggleEffectExpanded(unit.id); }}
-                    >
-                      {isEffectsExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                    </button>
-                  )}
                   {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
                   {unit.label || unit.unitType || 'Unit'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
                   {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
@@ -502,7 +521,7 @@ const TimelinePanel: React.FC = () => {
                   <Trash2 size={10} />
                 </button>
 
-                {/* Keyframe markers - clickable and draggable */}
+                {/* Keyframe markers */}
                 {unitKfs.map((kf, idx) => {
                   const isKfSelected = selectedKeyframeIndex?.objectId === unit.id && selectedKeyframeIndex?.index === idx;
                   return (
@@ -533,8 +552,9 @@ const TimelinePanel: React.FC = () => {
                     />
                   );
                 })}
-                {/* Compact effect dots when collapsed */}
-                {!isEffectsExpanded && unitEffects.map((eff) => {
+
+                {/* Effect dots inline — colored dot at startTime only, no duration */}
+                {unitEffects.map((eff) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
                   return (
                     <div
@@ -546,66 +566,16 @@ const TimelinePanel: React.FC = () => {
                   );
                 })}
               </div>
-
-              {/* Expanded effect sub-rows grouped by type */}
-              {isEffectsExpanded && effectTypes.map((effType) => {
-                const effs = effectsByType[effType];
-                const preset = EFFECT_PRESETS.find((p) => p.type === effType);
-                const effColor = EFFECT_COLORS[effType] || '#ff6600';
-                return (
-                  <div
-                    key={`${unit.id}-${effType}`}
-                    className="relative h-5 rounded-sm border border-border/50 ml-4"
-                    style={{
-                      width: timelineWidth - 16,
-                      borderLeftWidth: 2,
-                      borderLeftColor: effColor,
-                      backgroundColor: effColor + '08',
-                    }}
-                  >
-                    <span className="absolute left-1 top-0 text-[8px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
-                      {preset?.icon || '?'} {preset?.label || effType}
-                    </span>
-                    {effs.map((eff) => {
-                      const effLeft = eff.startTime * pxPerMs;
-                      const effWidth = Math.max(eff.duration * pxPerMs, 16);
-                      return (
-                        <TimelineBlock
-                          key={eff.id}
-                          left={effLeft}
-                          width={effWidth}
-                          label={`${preset?.icon || '?'} ${formatTime(eff.startTime)}`}
-                          sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
-                          isSelected={isSelected}
-                          bgColor={effColor + '55'}
-                          borderColor={effColor}
-                          onClick={(e) => { e.stopPropagation(); setSelectedIds([unit.id]); }}
-                          onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                          }, eff.startTime, eff.duration)}
-                          onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                          }, eff.startTime, eff.duration)}
-                          onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                          }, eff.startTime, eff.duration)}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              })}
             </div>
           );
         })}
 
-        {/* Standalone effects section - collapsible by type */}
+        {/* Standalone effects section */}
         {standaloneEffectTypes.length > 0 && (
           <div className="mt-1 pt-1 border-t border-border/30">
             <span className="text-[8px] font-mono uppercase text-muted-foreground/60 mb-0.5 block">Map Effects</span>
             {standaloneEffectTypes.map((effType) => {
               const effs = standaloneEffectsByType[effType];
-              const preset = EFFECT_PRESETS.find((p) => p.type === effType);
               const effColor = EFFECT_COLORS[effType] || '#ff6600';
               const isExpanded = expandedStandaloneEffects[effType] ?? true;
 
@@ -618,9 +588,8 @@ const TimelinePanel: React.FC = () => {
                   >
                     <span className="absolute left-1 top-0 text-[8px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
                       <span className="pointer-events-auto">{isExpanded ? <ChevronDown size={8} /> : <ChevronRight size={8} />}</span>
-                      {preset?.icon || '?'} {preset?.label || effType} ({effs.length})
+                      {effType} ({effs.length})
                     </span>
-                    {/* Show blocks on collapsed row */}
                     {!isExpanded && effs.map((effObj) => {
                       const objEffects = activeScene.effectsByObjectId[effObj.id] || [];
                       return objEffects.map((eff) => (
@@ -638,7 +607,7 @@ const TimelinePanel: React.FC = () => {
                           <TimelineBlock
                             left={effLeft}
                             width={effWidth}
-                            label={`${preset?.icon || '?'} ${effObj.label || ''}`}
+                            label={effObj.label || ''}
                             sublabel={formatTime(eff.startTime)}
                             isSelected={selectedIds.includes(effObj.id)}
                             bgColor={effColor + '55'}
