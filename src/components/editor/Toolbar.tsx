@@ -37,8 +37,11 @@ const Toolbar: React.FC = () => {
   const stopRecording = useEditorStore((s) => s.stopRecording);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
+  const currentTime = useEditorStore((s) => s.currentTime);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const formatSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
   const handleDelete = () => {
     selectedIds.forEach((id) => removeObject(id));
