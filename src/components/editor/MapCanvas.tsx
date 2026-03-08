@@ -420,6 +420,20 @@ const MapCanvas: React.FC = () => {
               </Group>
             );
           })}
+          {/* Arrow drawing preview */}
+          {drawingArrow && (
+            <Arrow
+              points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]}
+              stroke="#d4a843"
+              strokeWidth={3}
+              dash={[10, 6]}
+              pointerLength={12}
+              pointerWidth={10}
+              fill="#d4a843"
+              opacity={0.6}
+              listening={false}
+            />
+          )}
         </Layer>
 
         <Layer>
