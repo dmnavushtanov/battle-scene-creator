@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 const Index: React.FC = () => {
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
       {/* Header */}
@@ -19,9 +22,13 @@ const Index: React.FC = () => {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[9px] font-mono text-muted-foreground">
-            Browser-only • No server
-          </span>
+          <button
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+          </button>
         </div>
       </div>
 
@@ -38,10 +45,12 @@ const Index: React.FC = () => {
         {/* Center: Canvas */}
         <MapCanvas />
 
-        {/* Right: Properties */}
-        <div className="w-56 flex-shrink-0">
-          <PropertiesPanel />
-        </div>
+        {/* Right: Properties (collapsible) */}
+        {rightPanelOpen && (
+          <div className="w-56 flex-shrink-0">
+            <PropertiesPanel />
+          </div>
+        )}
       </div>
 
       {/* Bottom: Timeline */}

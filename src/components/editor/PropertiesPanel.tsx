@@ -172,14 +172,6 @@ const PropertiesPanel: React.FC = () => {
           </label>
         </div>
 
-        {/* Add Keyframe */}
-        <button
-          onClick={() => addKeyframeAtTime(single.id, currentTime)}
-          className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-primary/20 text-primary border border-primary/30 rounded hover:bg-primary/30 transition-colors"
-        >
-          + Add Keyframe at Playhead
-        </button>
-
         {/* Clear keyframes for this object */}
         {singleKeyframeCount > 0 && (
           <button
