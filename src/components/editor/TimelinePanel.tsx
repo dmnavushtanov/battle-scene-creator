@@ -17,6 +17,7 @@ const TimelinePanel: React.FC = () => {
     return scene || s.project.scenes[0];
   });
   const selectedIds = useEditorStore((s) => s.selectedIds);
+  const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
 
   const totalDuration = activeScene.duration;
   const timelineWidth = 800;
