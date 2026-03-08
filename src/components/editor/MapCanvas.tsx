@@ -184,6 +184,12 @@ const MapCanvas: React.FC = () => {
     .map((id) => objectsById[id])
     .filter((o) => o && o.type === 'unit');
 
+  const customIconSources = units
+    .map((unit) => unit.customIcon)
+    .filter((src): src is string => Boolean(src));
+
+  const customIconImages = useCustomIconCache(customIconSources);
+
   const drawings = objectOrder
     .map((id) => objectsById[id])
     .filter((o) => o && o.type === 'drawing');
