@@ -21,15 +21,6 @@ const Index: React.FC = () => {
             MVP
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-          </button>
-        </div>
       </div>
 
       {/* Toolbar */}
