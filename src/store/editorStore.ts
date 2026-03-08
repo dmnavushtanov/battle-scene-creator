@@ -83,6 +83,7 @@ export interface EditorState {
 
   // Keyframes
   addKeyframeAtTime: (objectId: string, time: number) => void;
+  batchAddKeyframes: (objectId: string, keyframes: Keyframe[]) => void;
   clearKeyframes: (objectId: string) => void;
   clearAllKeyframes: () => void;
 
