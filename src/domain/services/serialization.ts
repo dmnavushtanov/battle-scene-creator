@@ -50,6 +50,9 @@ export function importProject(json: string): ProjectData {
       objectsById,
       objectOrder,
       keyframesByObjectId,
+      effectsByObjectId: {},
+      narrationEvents: [],
+      overlayEvents: [],
     };
 
     return {
