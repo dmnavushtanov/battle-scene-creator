@@ -4,6 +4,8 @@ import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock
 import { v4 as uuid } from 'uuid';
 import type { NarrationEvent, OverlayEvent, UnitEffect, SoundEvent } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
+import { EFFECT_COLORS } from '@/domain/constants';
+import { formatTime } from '@/domain/formatters';
 import {
   Dialog,
   DialogContent,
@@ -12,10 +14,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
-};
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
