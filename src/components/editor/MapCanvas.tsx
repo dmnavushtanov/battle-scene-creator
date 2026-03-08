@@ -397,9 +397,11 @@ const MapCanvas: React.FC = () => {
             const hasExplosion = unitEffects.some((e) => e.type === 'explosion' && !e.ended);
             const hasSmoke = unitEffects.some((e) => e.type === 'smoke' && !e.ended);
             const hasFire = unitEffects.some((e) => e.type === 'fire' && !e.ended);
+            const hasGunshot = unitEffects.some((e) => e.type === 'gunshot' && !e.ended);
             const explosionEffect = unitEffects.find((e) => e.type === 'explosion' && !e.ended);
             const smokeEffect = unitEffects.find((e) => e.type === 'smoke' && !e.ended);
             const fireEffect = unitEffects.find((e) => e.type === 'fire' && !e.ended);
+            const gunshotEffect = unitEffects.find((e) => e.type === 'gunshot' && !e.ended);
 
             const group = getGroupForObject(unit.id);
 
