@@ -58,6 +58,10 @@ export function finalizeRecording(
 
     const existing = result[objId] ? [...result[objId]] : [];
 
+    // Remove all keyframes within the recorded range [t0, t1]
+    // This ensures re-recording a segment cleanly replaces that portion
+    const preserved = existing.filter((k) => k.time < t0 - 0.5 || k.time > t1 + 0.5);
+
     // Start keyframe from snapshot (position before drag)
     const startKf: Keyframe = {
       time: t0,
@@ -80,7 +84,7 @@ export function finalizeRecording(
       visible: obj.visible,
     };
 
-    result[objId] = upsertKeyframe(upsertKeyframe(existing, startKf), endKf);
+    result[objId] = upsertKeyframe(upsertKeyframe(preserved, startKf), endKf);
   }
 
   return result;
