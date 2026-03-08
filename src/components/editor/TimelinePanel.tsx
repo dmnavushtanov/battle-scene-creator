@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward, Plus, Trash2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
 import type { NarrationEvent, OverlayEvent } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
+
+const EFFECT_COLORS: Record<string, string> = {
+  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
+};
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -13,7 +17,6 @@ const TimelinePanel: React.FC = () => {
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
   const isRecording = useEditorStore((s) => s.isRecording);
   const recordingSession = useEditorStore((s) => s.recordingSession);
-  const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const addNarration = useEditorStore((s) => s.addNarration);
   const removeNarration = useEditorStore((s) => s.removeNarration);
   const addOverlay = useEditorStore((s) => s.addOverlay);
@@ -30,8 +33,10 @@ const TimelinePanel: React.FC = () => {
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
 
+  const [timelineZoom, setTimelineZoom] = useState(1);
+
   const totalDuration = activeScene.duration;
-  const timelineWidth = 800;
+  const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
 
   const formatTime = (ms: number) => {
@@ -85,17 +90,7 @@ const TimelinePanel: React.FC = () => {
   const overlayEvents = activeScene.overlayEvents || [];
   const groups = activeScene.groups || {};
 
-  // Collect ALL effects from all objects into a single flat list for the effects row
-  const allEffects: { objectId: string; objectLabel: string; effect: typeof activeScene.effectsByObjectId[string][number] }[] = [];
-  for (const unit of units) {
-    const effs = activeScene.effectsByObjectId[unit.id] || [];
-    for (const eff of effs) {
-      allEffects.push({ objectId: unit.id, objectLabel: unit.label || unit.unitType || 'Effect', effect: eff });
-    }
-  }
-
   const handleAddNarration = () => {
-    // Find end of last narration to avoid overlap
     const lastEnd = narrationEvents.reduce((max, n) => Math.max(max, n.startTime + n.duration), 0);
     const startAt = lastEnd > currentTime ? lastEnd + 100 : currentTime;
     const event: NarrationEvent = {
@@ -154,40 +149,50 @@ const TimelinePanel: React.FC = () => {
     label: string;
     sublabel?: string;
     isSelected: boolean;
-    colorClass: string;
-    borderClass: string;
+    bgColor?: string;
+    borderColor?: string;
+    colorClass?: string;
+    borderClass?: string;
     onClick: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
     onMoveDown: (e: React.MouseEvent) => void;
     onResizeLeft: (e: React.MouseEvent) => void;
     onResizeRight: (e: React.MouseEvent) => void;
-  }> = ({ left, width, label, sublabel, isSelected, colorClass, borderClass, onClick, onDelete, onMoveDown, onResizeLeft, onResizeRight }) => (
-    <div
-      className={`absolute top-1 h-4 rounded-sm flex items-center px-1 group cursor-grab active:cursor-grabbing ${isSelected ? `${colorClass} border-2 ${borderClass}` : `${colorClass.replace('/40', '/20')} border ${borderClass.replace('border-', 'border-')}/40 hover:${colorClass.replace('/40', '/30')}`}`}
-      style={{ left, width: Math.max(width, 24) }}
-      title={sublabel ? `${label} · ${sublabel}` : label}
-      onClick={onClick}
-      onMouseDown={onMoveDown}
-    >
-      <span className="text-[7px] font-mono truncate pointer-events-none flex-1">{label}</span>
-      {onDelete && (
-        <button onClick={onDelete} className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"><Trash2 size={8} /></button>
-      )}
-      {/* Left resize */}
-      <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-l-sm pointer-events-auto"
-        style={{ background: 'rgba(255,255,255,0.15)' }}
-        onMouseDown={(e) => { e.stopPropagation(); onResizeLeft(e); }} />
-      {/* Right resize */}
-      <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-r-sm pointer-events-auto"
-        style={{ background: 'rgba(255,255,255,0.15)' }}
-        onMouseDown={(e) => { e.stopPropagation(); onResizeRight(e); }} />
-    </div>
-  );
+  }> = ({ left, width, label, sublabel, isSelected, bgColor, borderColor, colorClass, borderClass, onClick, onDelete, onMoveDown, onResizeLeft, onResizeRight }) => {
+    const useInline = bgColor && borderColor;
+    const style: React.CSSProperties = { left, width: Math.max(width, 24) };
+    if (useInline) {
+      style.backgroundColor = isSelected ? bgColor : bgColor + '66';
+      style.borderColor = borderColor;
+    }
+    return (
+      <div
+        className={`absolute top-1 h-4 rounded-sm flex items-center px-1 group cursor-grab active:cursor-grabbing border ${
+          useInline ? (isSelected ? 'border-2' : '') : (isSelected ? `${colorClass} border-2 ${borderClass}` : `${colorClass?.replace('/40', '/20')} border ${borderClass}/40`)
+        }`}
+        style={style}
+        title={sublabel ? `${label} · ${sublabel}` : label}
+        onClick={onClick}
+        onMouseDown={onMoveDown}
+      >
+        <span className="text-[7px] font-mono truncate pointer-events-none flex-1 text-foreground">{label}</span>
+        {onDelete && (
+          <button onClick={onDelete} className="ml-auto text-destructive opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"><Trash2 size={8} /></button>
+        )}
+        <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-l-sm pointer-events-auto"
+          style={{ background: 'rgba(255,255,255,0.15)' }}
+          onMouseDown={(e) => { e.stopPropagation(); onResizeLeft(e); }} />
+        <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 rounded-r-sm pointer-events-auto"
+          style={{ background: 'rgba(255,255,255,0.15)' }}
+          onMouseDown={(e) => { e.stopPropagation(); onResizeRight(e); }} />
+      </div>
+    );
+  };
 
   return (
     <div className="bg-timeline border-t border-border flex flex-col h-full">
-      {/* Controls bar - sticky */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 sticky top-0 z-10 bg-timeline">
+      {/* Controls bar - fixed at top, never scrolls */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-10">
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
         <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -196,18 +201,25 @@ const TimelinePanel: React.FC = () => {
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
         <div className="flex-1" />
-        <span className="text-[10px] font-mono text-muted-foreground">{totalKeyframes} keyframes</span>
+        {/* Timeline zoom controls */}
+        <div className="flex items-center gap-1 border border-border rounded px-1">
+          <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
+            <ZoomOut size={12} />
+          </button>
+          <span className="text-[9px] font-mono text-muted-foreground min-w-[32px] text-center">{Math.round(timelineZoom * 100)}%</span>
+          <button onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom in">
+            <ZoomIn size={12} />
+          </button>
+        </div>
+        <span className="text-[10px] font-mono text-muted-foreground ml-2">{totalKeyframes} kf</span>
       </div>
 
-      {/* Timeline tracks */}
+      {/* Timeline tracks - scrollable area */}
       <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
         {/* Time ruler */}
         <div className="relative h-5 mb-1 cursor-pointer" onClick={handleTimelineClick} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
-          )}
-          {!isRecording && !isPlaying && (
-            <div className="absolute top-0 h-full bg-primary/5 border-l border-r border-primary/20 pointer-events-none" style={{ left: currentTime * pxPerMs, width: recordDurationSeconds * 1000 * pxPerMs }} />
           )}
           {Array.from({ length: Math.ceil(totalDuration / 1000) + 1 }, (_, i) => (
             <div key={i} className="absolute top-0 flex flex-col items-center" style={{ left: i * 1000 * pxPerMs }}>
@@ -294,51 +306,10 @@ const TimelinePanel: React.FC = () => {
           })}
         </div>
 
-        {/* Combined Effects track - all effects from all units stacked on one row */}
-        {allEffects.length > 0 && (
-          <div className="relative h-6 mb-0.5 rounded-sm border border-destructive/30 bg-destructive/5" style={{ width: timelineWidth }}>
-            <span className="absolute left-1 top-0.5 text-[9px] font-mono text-destructive/70 uppercase pointer-events-none">
-              💥 FX ({allEffects.length})
-            </span>
-            {allEffects.map(({ objectId, objectLabel, effect: eff }) => {
-              const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
-              const effLeft = eff.startTime * pxPerMs;
-              const effWidth = Math.max(eff.duration * pxPerMs, 16);
-              return (
-                <div
-                  key={eff.id}
-                  className="absolute top-1 h-4 bg-destructive/25 border border-destructive/40 rounded-sm flex items-center justify-center cursor-grab hover:bg-destructive/35 group/eff active:cursor-grabbing"
-                  style={{ left: effLeft, width: effWidth }}
-                  title={`${preset?.label || eff.type} on ${objectLabel} · ${(eff.startTime / 1000).toFixed(1)}s · ${(eff.duration / 1000).toFixed(1)}s`}
-                  onClick={(e) => { e.stopPropagation(); setSelectedIds([objectId]); }}
-                  onMouseDown={makeBlockDragHandler('move', (st, dur) => {
-                    useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
-                  }, eff.startTime, eff.duration)}
-                >
-                  <span className="text-[7px] pointer-events-none">{preset?.icon || '?'}</span>
-                  {/* Left resize handle */}
-                  <div
-                    className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-l-sm"
-                    onMouseDown={(me) => { me.stopPropagation(); makeBlockDragHandler('resize-left', (st, dur) => {
-                      useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)(me); }}
-                  />
-                  {/* Right resize handle */}
-                  <div
-                    className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover/eff:opacity-100 bg-destructive/40 rounded-r-sm"
-                    onMouseDown={(me) => { me.stopPropagation(); makeBlockDragHandler('resize-right', (st, dur) => {
-                      useEditorStore.getState().updateEffect(objectId, eff.id, { startTime: st, duration: dur });
-                    }, eff.startTime, eff.duration)(me); }}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Unit tracks - keyframes only (effects shown in combined FX row) */}
-        {units.slice(0, 15).map((unit) => {
+        {/* Unit tracks - with effects inline on each unit's track */}
+        {units.slice(0, 20).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
+          const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
           const isSelected = selectedIds.includes(unit.id);
           const group = Object.values(groups).find((g) => g.memberIds.includes(unit.id));
 
@@ -359,10 +330,41 @@ const TimelinePanel: React.FC = () => {
               <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
                 {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
                 {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
+                {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
               </span>
+              {/* Keyframe markers */}
               {unitKfs.map((kf, idx) => (
                 <div key={`kf-${idx}`} className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none" style={{ left: kf.time * pxPerMs - 6 }} title={`t=${formatTime(kf.time)}`} />
               ))}
+              {/* Effect blocks inline on the unit track */}
+              {unitEffects.map((eff) => {
+                const preset = EFFECT_PRESETS.find((p) => p.type === eff.type);
+                const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                const effLeft = eff.startTime * pxPerMs;
+                const effWidth = Math.max(eff.duration * pxPerMs, 16);
+                return (
+                  <TimelineBlock
+                    key={eff.id}
+                    left={effLeft}
+                    width={effWidth}
+                    label={`${preset?.icon || '?'} ${preset?.label || eff.type}`}
+                    sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
+                    isSelected={isSelected}
+                    bgColor={effColor + '55'}
+                    borderColor={effColor}
+                    onClick={(e) => { e.stopPropagation(); setSelectedIds([unit.id]); }}
+                    onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                    }, eff.startTime, eff.duration)}
+                    onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                    }, eff.startTime, eff.duration)}
+                    onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                      useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                    }, eff.startTime, eff.duration)}
+                  />
+                );
+              })}
             </div>
           );
         })}

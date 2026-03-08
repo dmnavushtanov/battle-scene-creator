@@ -15,7 +15,6 @@ const NarrationOverlay: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
   const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
 
-  // Show overlay preview when editing (not playing) and an overlay is selected
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
     return scene || s.project.scenes[0];
@@ -101,10 +100,10 @@ const Index: React.FC = () => {
       <ResizablePanelGroup direction="vertical" className="flex-1">
         <ResizablePanel defaultSize={75} minSize={40}>
           {/* Main editor area */}
-          <div className="flex h-full overflow-hidden relative">
+          <div className="flex h-full relative">
             {/* Left: Asset Library */}
             {leftPanelOpen && (
-              <div className="w-52 flex-shrink-0 overflow-hidden">
+              <div className="w-52 flex-shrink-0 overflow-y-auto">
                 <AssetLibrary />
               </div>
             )}
@@ -125,27 +124,20 @@ const Index: React.FC = () => {
               <NarrationOverlay />
             </div>
 
-            {/* Right panel toggle */}
-            {!rightPanelOpen && (
-              <button
-                onClick={() => setRightPanelOpen(true)}
-                title="Show properties panel"
-                className="absolute top-1/2 -translate-y-1/2 right-0 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md"
-              >
-                <PanelRightOpen size={14} className="mx-auto" />
-              </button>
-            )}
+            {/* Right panel collapse button - always visible outside the panel */}
+            <button
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
+              className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
+                rightPanelOpen ? 'right-72 rounded-l-md border-r-0' : 'right-0 rounded-l-md'
+              }`}
+            >
+              {rightPanelOpen ? <PanelRightClose size={14} className="mx-auto" /> : <PanelRightOpen size={14} className="mx-auto" />}
+            </button>
 
             {/* Right: Properties Panel */}
             {rightPanelOpen && (
-              <div className="w-72 flex-shrink-0 overflow-hidden relative">
-                <button
-                  onClick={() => setRightPanelOpen(false)}
-                  title="Hide properties panel"
-                  className="absolute top-1/2 -translate-y-1/2 left-0 z-20 h-14 w-6 border border-border border-r-0 bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-l-md -translate-x-full"
-                >
-                  <PanelRightClose size={14} className="mx-auto" />
-                </button>
+              <div className="w-72 flex-shrink-0 overflow-y-auto">
                 <PropertiesPanel />
               </div>
             )}
