@@ -730,6 +730,23 @@ const MapCanvas: React.FC = () => {
             );
           })}
         </Layer>
+
+        {/* Selection rectangle overlay */}
+        {selectionRect && (
+          <Layer>
+            <Rect
+              x={Math.min(selectionRect.x1, selectionRect.x2)}
+              y={Math.min(selectionRect.y1, selectionRect.y2)}
+              width={Math.abs(selectionRect.x2 - selectionRect.x1)}
+              height={Math.abs(selectionRect.y2 - selectionRect.y1)}
+              fill="rgba(212,168,67,0.1)"
+              stroke="#d4a843"
+              strokeWidth={1}
+              dash={[6, 3]}
+              listening={false}
+            />
+          </Layer>
+        )}
       </Stage>
 
       {/* Context menu */}
