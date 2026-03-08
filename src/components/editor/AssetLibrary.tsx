@@ -53,6 +53,8 @@ const AssetLibrary: React.FC = () => {
       height: ICON_RENDER_SIZE,
     };
     addObject(obj);
+    setActiveTool('select');
+    setSelectedIds([obj.id]);
   };
 
   const handleMapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
