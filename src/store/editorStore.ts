@@ -4,8 +4,7 @@ import type { MapObject, Scene, Keyframe, ProjectData, DrawToolType, LayerType, 
 import { evaluateObjectAtTime, upsertKeyframe, evaluateEffectsAtTime } from '@/domain/services/timeline';
 import { createRecordingSession, captureInitialSnapshot, finalizeRecording, type RecordingSession } from '@/domain/services/recording';
 import { exportProject as serializeProject, importProject as deserializeProject } from '@/domain/services/serialization';
-
-const GROUP_COLORS = ['#00bcd4', '#e91e63', '#4caf50', '#ff9800', '#9c27b0', '#2196f3', '#ff5722', '#009688'];
+import { GROUP_COLORS } from '@/domain/constants';
 
 function createDefaultScene(): Scene {
   return {

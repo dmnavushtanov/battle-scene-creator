@@ -27,9 +27,7 @@ function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
   });
 }
 
-const EFFECT_COLORS: Record<string, string> = {
-  explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400',
-};
+import { EFFECT_COLORS } from '@/domain/constants';
 
 type Tab = 'units' | 'effects' | 'sounds';
 
