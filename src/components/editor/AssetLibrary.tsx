@@ -30,6 +30,8 @@ function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
 const AssetLibrary: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);
   const setBackgroundImage = useEditorStore((s) => s.setBackgroundImage);
+  const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
+  const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +53,8 @@ const AssetLibrary: React.FC = () => {
       height: ICON_RENDER_SIZE,
     };
     addObject(obj);
+    setActiveTool('select');
+    setSelectedIds([obj.id]);
   };
 
   const handleMapUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,6 +100,8 @@ const AssetLibrary: React.FC = () => {
         height: ICON_RENDER_SIZE,
       };
       addObject(obj);
+      setActiveTool('select');
+      setSelectedIds([obj.id]);
     };
     reader.readAsDataURL(file);
 

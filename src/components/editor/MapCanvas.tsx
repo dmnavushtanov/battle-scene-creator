@@ -27,61 +27,33 @@ const UNIT_LABELS: Record<string, string> = {
 
 const UNIT_COLOR = '#d4a843';
 
-/** Hook to load an image from a URL/dataURL and return the HTMLImageElement */
-function useLoadedImage(src: string | undefined): HTMLImageElement | null {
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
-  useEffect(() => {
-    if (!src) { setImg(null); return; }
-    const image = new window.Image();
-    image.src = src;
-    image.onload = () => setImg(image);
-    return () => { image.onload = null; };
-  }, [src]);
-  return img;
-}
+/** Shared cache for custom icon images */
+const customIconCache = new Map<string, HTMLImageElement>();
 
-/** Cached image store for custom icons */
-const imageCache = new Map<string, HTMLImageElement>();
-
-function getCachedImage(src: string): HTMLImageElement | null {
-  if (imageCache.has(src)) return imageCache.get(src)!;
-  const img = new window.Image();
-  img.src = src;
-  img.onload = () => imageCache.set(src, img);
-  return imageCache.get(src) || null;
-}
-
-/** Component for rendering a unit's custom icon on Konva */
-const CustomIconImage: React.FC<{ src: string; size: number }> = ({ src, size }) => {
-  const [img, setImg] = useState<HTMLImageElement | null>(() => getCachedImage(src));
+function useCustomIconCache(sources: string[]) {
+  const [, forceRerender] = useState(0);
 
   useEffect(() => {
-    if (imageCache.has(src)) {
-      setImg(imageCache.get(src)!);
-      return;
-    }
-    const image = new window.Image();
-    image.src = src;
-    image.onload = () => {
-      imageCache.set(src, image);
-      setImg(image);
+    let cancelled = false;
+
+    sources.forEach((src) => {
+      if (!src || customIconCache.has(src)) return;
+      const image = new window.Image();
+      image.src = src;
+      image.onload = () => {
+        customIconCache.set(src, image);
+        if (!cancelled) forceRerender((v) => v + 1);
+      };
+    });
+
+    return () => {
+      cancelled = true;
     };
-  }, [src]);
+  }, [sources]);
 
-  if (!img) return null;
+  return customIconCache;
+}
 
-  const padding = 4;
-  const innerSize = size - padding * 2;
-  return (
-    <KImage
-      image={img}
-      x={-innerSize / 2}
-      y={-innerSize / 2}
-      width={innerSize}
-      height={innerSize}
-    />
-  );
-};
 
 const MapCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -202,7 +174,7 @@ const MapCanvas: React.FC = () => {
   };
 
   const getObjectTransform = (id: string) => {
-    if (!isRecording && derivedTransforms[id]) {
+    if (isPlaying && derivedTransforms[id]) {
       return derivedTransforms[id];
     }
     return null;
@@ -211,6 +183,12 @@ const MapCanvas: React.FC = () => {
   const units = objectOrder
     .map((id) => objectsById[id])
     .filter((o) => o && o.type === 'unit');
+
+  const customIconSources = units
+    .map((unit) => unit.customIcon)
+    .filter((src): src is string => Boolean(src));
+
+  const customIconImages = useCustomIconCache(customIconSources);
 
   const drawings = objectOrder
     .map((id) => objectsById[id])
@@ -281,11 +259,13 @@ const MapCanvas: React.FC = () => {
 
             if (!uvis) return null;
 
-            const hasCustomIcon = !!unit.customIcon;
+            const customIconImage = unit.customIcon ? customIconImages.get(unit.customIcon) : null;
+            const hasCustomIcon = Boolean(customIconImage);
 
             return (
               <Group
                 key={unit.id}
+                id={`unit-${unit.id}`}
                 x={ux}
                 y={uy}
                 rotation={urot}
@@ -335,7 +315,15 @@ const MapCanvas: React.FC = () => {
                 />
 
                 {/* Custom uploaded icon */}
-                {hasCustomIcon && <CustomIconImage src={unit.customIcon!} size={size} />}
+                {hasCustomIcon && (
+                  <KImage
+                    image={customIconImage!}
+                    x={-size / 2 + 4}
+                    y={-size / 2 + 4}
+                    width={size - 8}
+                    height={size - 8}
+                  />
+                )}
 
                 {/* Default: emoji symbol + label */}
                 {!hasCustomIcon && (

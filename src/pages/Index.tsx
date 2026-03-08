@@ -21,22 +21,13 @@ const Index: React.FC = () => {
             MVP
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {rightPanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-          </button>
-        </div>
       </div>
 
       {/* Toolbar */}
       <Toolbar />
 
       {/* Main editor area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Left: Asset Library */}
         <div className="w-52 flex-shrink-0">
           <AssetLibrary />
@@ -44,6 +35,17 @@ const Index: React.FC = () => {
 
         {/* Center: Canvas */}
         <MapCanvas />
+
+        {/* Right edge collapse handle */}
+        <button
+          onClick={() => setRightPanelOpen(!rightPanelOpen)}
+          title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
+          className={`absolute top-1/2 -translate-y-1/2 z-20 h-14 w-6 border border-border bg-panel text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ${
+            rightPanelOpen ? 'right-56 rounded-l-md border-r-0' : 'right-0 rounded-l-md'
+          }`}
+        >
+          {rightPanelOpen ? <PanelRightClose size={14} className="mx-auto" /> : <PanelRightOpen size={14} className="mx-auto" />}
+        </button>
 
         {/* Right: Properties (collapsible) */}
         {rightPanelOpen && (
