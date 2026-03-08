@@ -358,80 +358,155 @@ const MapCanvas: React.FC = () => {
 
                 {/* === EFFECT OVERLAYS === */}
 
-                {/* Crack overlay: diagonal lines across the unit */}
-                {hasCrack && (
-                  <>
-                    <Line points={[-size / 2 + 5, -size / 2 + 5, 2, 0, size / 2 - 5, size / 2 - 5]} stroke="#888" strokeWidth={2} opacity={0.8} listening={false} />
-                    <Line points={[size / 2 - 8, -size / 2 + 3, -2, 3, -size / 2 + 8, size / 2 - 8]} stroke="#666" strokeWidth={1.5} opacity={0.7} listening={false} />
-                    <Line points={[-size / 2 + 10, 0, 0, 5, size / 2 - 3, -3]} stroke="#555" strokeWidth={1} opacity={0.6} listening={false} />
-                  </>
-                )}
+                {/* Crack overlay: realistic fracture lines */}
+                {hasCrack && (() => {
+                  const s2 = size / 2;
+                  const crackEffect = unitEffects.find((e) => e.type === 'crack');
+                  const crackOpacity = crackEffect ? Math.min(1, crackEffect.ended ? 0.85 : crackEffect.progress * 1.5) : 0.85;
+                  return (
+                    <>
+                      {/* Main fracture from impact point */}
+                      <Line points={[-2, -s2 * 0.3, -1, -s2 * 0.1, 3, s2 * 0.15, 1, s2 * 0.5]} stroke="#aaa" strokeWidth={2.5} opacity={crackOpacity} lineCap="round" lineJoin="round" listening={false} />
+                      {/* Branch cracks */}
+                      <Line points={[-1, -s2 * 0.1, -s2 * 0.4, -s2 * 0.25]} stroke="#999" strokeWidth={1.5} opacity={crackOpacity * 0.8} lineCap="round" listening={false} />
+                      <Line points={[-1, -s2 * 0.1, s2 * 0.35, -s2 * 0.05]} stroke="#888" strokeWidth={1.2} opacity={crackOpacity * 0.7} lineCap="round" listening={false} />
+                      <Line points={[3, s2 * 0.15, s2 * 0.45, s2 * 0.35]} stroke="#999" strokeWidth={1.5} opacity={crackOpacity * 0.75} lineCap="round" listening={false} />
+                      <Line points={[3, s2 * 0.15, -s2 * 0.3, s2 * 0.4]} stroke="#888" strokeWidth={1} opacity={crackOpacity * 0.65} lineCap="round" listening={false} />
+                      {/* Micro fragments */}
+                      <Line points={[-s2 * 0.4, -s2 * 0.25, -s2 * 0.55, -s2 * 0.45]} stroke="#777" strokeWidth={0.8} opacity={crackOpacity * 0.5} lineCap="round" listening={false} />
+                      <Line points={[s2 * 0.35, -s2 * 0.05, s2 * 0.5, -s2 * 0.2]} stroke="#777" strokeWidth={0.8} opacity={crackOpacity * 0.5} lineCap="round" listening={false} />
+                    </>
+                  );
+                })()}
 
-                {/* Blood overlay: red circles splattered */}
-                {hasBlood && (
-                  <>
-                    <Circle x={-5} y={3} radius={6} fill="#8b0000" opacity={0.6} listening={false} />
-                    <Circle x={8} y={-4} radius={4} fill="#a00" opacity={0.5} listening={false} />
-                    <Circle x={-2} y={10} radius={3} fill="#900" opacity={0.55} listening={false} />
-                    <Circle x={6} y={8} radius={5} fill="#8b0000" opacity={0.45} listening={false} />
-                  </>
-                )}
+                {/* Blood overlay: realistic splatter drops */}
+                {hasBlood && (() => {
+                  const bloodEffect = unitEffects.find((e) => e.type === 'blood');
+                  const bloodOpacity = bloodEffect ? Math.min(1, bloodEffect.ended ? 0.75 : bloodEffect.progress * 1.8) : 0.75;
+                  const s2 = size / 2;
+                  return (
+                    <>
+                      {/* Main splatter - irregular shape via multiple overlapping */}
+                      <Circle x={-3} y={1} radius={s2 * 0.22} fill="#8b0000" opacity={bloodOpacity * 0.7} listening={false} />
+                      <Circle x={1} y={-2} radius={s2 * 0.15} fill="#a00000" opacity={bloodOpacity * 0.6} listening={false} />
+                      {/* Drip drops trailing down */}
+                      <Circle x={-6} y={s2 * 0.35} radius={2.5} fill="#8b0000" opacity={bloodOpacity * 0.65} listening={false} />
+                      <Circle x={-5} y={s2 * 0.55} radius={1.8} fill="#700000" opacity={bloodOpacity * 0.55} listening={false} />
+                      <Circle x={-4.5} y={s2 * 0.7} radius={1.2} fill="#600000" opacity={bloodOpacity * 0.45} listening={false} />
+                      {/* Scatter drops */}
+                      <Circle x={s2 * 0.3} y={-s2 * 0.15} radius={2} fill="#a00000" opacity={bloodOpacity * 0.5} listening={false} />
+                      <Circle x={-s2 * 0.35} y={s2 * 0.1} radius={1.5} fill="#900000" opacity={bloodOpacity * 0.45} listening={false} />
+                      <Circle x={s2 * 0.15} y={s2 * 0.3} radius={2.2} fill="#800000" opacity={bloodOpacity * 0.55} listening={false} />
+                      <Circle x={s2 * 0.4} y={s2 * 0.05} radius={1} fill="#a00000" opacity={bloodOpacity * 0.4} listening={false} />
+                    </>
+                  );
+                })()}
 
-                {/* Explosion burst: radial orange/red circles */}
-                {hasExplosion && explosionEffect && (
-                  <>
-                    {[0, 60, 120, 180, 240, 300].map((angle, i) => {
-                      const rad = (angle * Math.PI) / 180;
-                      const dist = size * 0.6 * explosionEffect.progress;
-                      const opacity = (1 - explosionEffect.progress) * explosionEffect.intensity;
-                      return (
-                        <Circle
-                          key={`exp-${i}`}
-                          x={Math.cos(rad) * dist}
-                          y={Math.sin(rad) * dist}
-                          radius={4 + explosionEffect.progress * 6}
-                          fill={i % 2 === 0 ? '#ff6600' : '#ff2200'}
-                          opacity={opacity}
-                          listening={false}
-                        />
-                      );
-                    })}
-                    <Circle x={0} y={0} radius={size * 0.3 * (1 - explosionEffect.progress)} fill="#ffaa00" opacity={(1 - explosionEffect.progress) * 0.8} listening={false} />
-                  </>
-                )}
+                {/* Explosion burst: radial shockwave + debris */}
+                {hasExplosion && explosionEffect && (() => {
+                  const p = explosionEffect.progress;
+                  const intensity = explosionEffect.intensity;
+                  return (
+                    <>
+                      {/* Core flash */}
+                      <Circle x={0} y={0} radius={size * 0.4 * (1 - p * 0.5)} fill="#fff8e0" opacity={(1 - p) * intensity * 0.9} listening={false} />
+                      {/* Inner fireball */}
+                      <Circle x={0} y={0} radius={size * 0.35 * (0.5 + p * 0.5)} fill="#ff8800" opacity={(1 - p * 0.8) * intensity * 0.7} listening={false} />
+                      {/* Shockwave ring */}
+                      <Circle x={0} y={0} radius={size * (0.3 + p * 0.8)} stroke="#ff6600" strokeWidth={3 * (1 - p)} fill="transparent" opacity={(1 - p) * intensity * 0.6} listening={false} />
+                      {/* Debris particles flying outward */}
+                      {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
+                        const rad = (angle * Math.PI) / 180;
+                        const dist = size * (0.2 + p * 0.9) * (0.7 + (i % 3) * 0.15);
+                        const pSize = (3 - p * 2) * (i % 2 === 0 ? 1 : 0.6);
+                        return (
+                          <Circle
+                            key={`exp-${i}`}
+                            x={Math.cos(rad) * dist}
+                            y={Math.sin(rad) * dist}
+                            radius={Math.max(0.5, pSize)}
+                            fill={i % 3 === 0 ? '#ffcc00' : i % 3 === 1 ? '#ff6600' : '#ff2200'}
+                            opacity={(1 - p) * intensity}
+                            listening={false}
+                          />
+                        );
+                      })}
+                    </>
+                  );
+                })()}
 
-                {/* Smoke: fading gray circles rising */}
-                {hasSmoke && smokeEffect && (
-                  <>
-                    {[0, 1, 2].map((i) => {
-                      const yOff = -i * 12 * smokeEffect.progress - 5;
-                      const opacity = (1 - smokeEffect.progress * 0.7) * smokeEffect.intensity * 0.5;
-                      return (
-                        <Circle key={`smoke-${i}`} x={i * 6 - 6} y={yOff - size / 2} radius={8 + smokeEffect.progress * 10} fill="#666" opacity={opacity} listening={false} />
-                      );
-                    })}
-                  </>
-                )}
+                {/* Smoke: layered rising puffs with turbulence */}
+                {hasSmoke && smokeEffect && (() => {
+                  const p = smokeEffect.progress;
+                  const intensity = smokeEffect.intensity;
+                  const puffs = [
+                    { x: 0, y: 0, r: 12, delay: 0 },
+                    { x: -7, y: -4, r: 9, delay: 0.1 },
+                    { x: 6, y: -3, r: 10, delay: 0.15 },
+                    { x: -3, y: -10, r: 11, delay: 0.25 },
+                    { x: 4, y: -14, r: 8, delay: 0.3 },
+                    { x: -1, y: -20, r: 13, delay: 0.4 },
+                    { x: 5, y: -26, r: 10, delay: 0.5 },
+                  ];
+                  return (
+                    <>
+                      {puffs.map((puff, i) => {
+                        const localP = Math.max(0, Math.min(1, (p - puff.delay) / (1 - puff.delay)));
+                        if (localP <= 0) return null;
+                        const turbX = Math.sin(currentTime * 0.008 + i * 1.5) * 4 * localP;
+                        const riseY = puff.y - localP * 25;
+                        const expandR = puff.r * (0.6 + localP * 0.8);
+                        const fadeOpacity = (1 - localP * 0.7) * intensity * 0.45;
+                        return (
+                          <Circle
+                            key={`smoke-${i}`}
+                            x={puff.x + turbX}
+                            y={riseY - size / 2}
+                            radius={expandR}
+                            fill={`rgb(${120 + i * 10}, ${120 + i * 10}, ${120 + i * 10})`}
+                            opacity={fadeOpacity}
+                            listening={false}
+                          />
+                        );
+                      })}
+                    </>
+                  );
+                })()}
 
-                {/* Fire: flickering orange/red circles */}
-                {hasFire && fireEffect && (
-                  <>
-                    {[0, 1, 2].map((i) => {
-                      const flicker = Math.sin(currentTime * 0.02 + i * 2) * 3;
-                      return (
-                        <Circle
-                          key={`fire-${i}`}
-                          x={i * 8 - 8 + flicker}
-                          y={-size / 2 - 4 + Math.sin(currentTime * 0.015 + i) * 2}
-                          radius={5 + Math.sin(currentTime * 0.03 + i) * 2}
-                          fill={i % 2 === 0 ? '#ff4400' : '#ff8800'}
-                          opacity={fireEffect.intensity * 0.7}
-                          listening={false}
-                        />
-                      );
-                    })}
-                  </>
-                )}
+                {/* Fire: dynamic flickering flames */}
+                {hasFire && fireEffect && (() => {
+                  const intensity = fireEffect.intensity;
+                  const flames = [
+                    { x: 0, baseY: -size / 2, r: 7, speed: 0.025, color: '#ff2200' },
+                    { x: -6, baseY: -size / 2 + 2, r: 5, speed: 0.03, color: '#ff4400' },
+                    { x: 5, baseY: -size / 2 + 1, r: 6, speed: 0.022, color: '#ff6600' },
+                    { x: -3, baseY: -size / 2 - 4, r: 4, speed: 0.035, color: '#ffaa00' },
+                    { x: 3, baseY: -size / 2 - 6, r: 5, speed: 0.028, color: '#ff8800' },
+                    { x: 0, baseY: -size / 2 - 10, r: 3, speed: 0.04, color: '#ffcc44' },
+                  ];
+                  return (
+                    <>
+                      {/* Base glow */}
+                      <Circle x={0} y={-size / 2} radius={size * 0.35} fill="#ff440033" opacity={intensity * 0.3} listening={false} />
+                      {flames.map((f, i) => {
+                        const flicker = Math.sin(currentTime * f.speed + i * 2.1) * 3;
+                        const yFlicker = Math.sin(currentTime * f.speed * 1.3 + i) * 2;
+                        const sizeFlicker = Math.sin(currentTime * f.speed * 0.8 + i * 0.7) * 1.5;
+                        return (
+                          <Circle
+                            key={`fire-${i}`}
+                            x={f.x + flicker}
+                            y={f.baseY + yFlicker}
+                            radius={f.r + sizeFlicker}
+                            fill={f.color}
+                            opacity={intensity * (0.5 + Math.sin(currentTime * f.speed * 1.5 + i) * 0.2)}
+                            listening={false}
+                          />
+                        );
+                      })}
+                    </>
+                  );
+                })()}
               </Group>
             );
           })}
