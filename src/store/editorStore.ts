@@ -13,6 +13,9 @@ function createDefaultScene(): Scene {
     objectsById: {},
     objectOrder: [],
     keyframesByObjectId: {},
+    effectsByObjectId: {},
+    narrationEvents: [],
+    overlayEvents: [],
   };
 }
 
