@@ -233,16 +233,27 @@ const MapCanvas: React.FC = () => {
     }
   };
 
-  // Left-click on empty space = deselect everything
+  // Left-click on empty space = deselect everything OR path waypoint
   const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (e.evt.button !== 0) return;
     if (isPanning.current) return;
+
+    // Path drawing: add waypoint on single click
+    if (activeTool === 'path') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      const sx = (pointer.x - stagePosition.x) / stageScale;
+      const sy = (pointer.y - stagePosition.y) / stageScale;
+      isDrawingPath.current = true;
+      setPathPoints((prev) => [...prev, { x: sx, y: sy }]);
+      return;
+    }
+
     const target = e.target;
     const stage = stageRef.current;
-    // Click hit the Stage itself, the bg rect, or passed through non-listening grid lines
     const isEmptySpace = target === stage || target.attrs?.id === 'bg-rect';
     if (isEmptySpace) {
-      // Clear ALL selections: units, narrations, overlays
       useEditorStore.setState({
         selectedIds: [],
         selectedNarrationId: null,
@@ -250,6 +261,47 @@ const MapCanvas: React.FC = () => {
       });
       setContextMenu(null);
     }
+  };
+
+  // Double-click to finalize path
+  const handleStageDblClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (activeTool !== 'path' || pathPoints.length < 2) return;
+    const sids = useEditorStore.getState().selectedIds;
+    if (sids.length !== 1) {
+      // No single unit selected — just clear path
+      setPathPoints([]);
+      isDrawingPath.current = false;
+      return;
+    }
+    const unitId = sids[0];
+    const ct = useEditorStore.getState().currentTime;
+    const durMs = recordDurationSeconds * 1000;
+
+    // Convert path points to evenly-spaced keyframes
+    const keyframes: import('@/domain/models').Keyframe[] = pathPoints.map((pt, i) => {
+      const t = ct + (i / (pathPoints.length - 1)) * durMs;
+      const obj = activeScene.objectsById[unitId];
+      return {
+        time: t,
+        x: pt.x,
+        y: pt.y,
+        rotation: obj?.rotation || 0,
+        scaleX: obj?.scaleX || 1,
+        scaleY: obj?.scaleY || 1,
+        visible: obj?.visible ?? true,
+      };
+    });
+
+    batchAddKeyframes(unitId, keyframes);
+
+    // Auto-extend scene duration if needed
+    const endTime = ct + durMs;
+    if (endTime > activeScene.duration) {
+      useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
+    }
+
+    setPathPoints([]);
+    isDrawingPath.current = false;
   };
 
   const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
