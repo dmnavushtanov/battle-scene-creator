@@ -5,6 +5,7 @@ import { useEditorStore } from '@/store/editorStore';
 import type { ActiveEffect, EffectType, MapObject } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { v4 as uuid } from 'uuid';
+import { Route } from 'lucide-react';
 
 const UNIT_SYMBOLS: Record<string, string> = {
   infantry: '⚔', cavalry: '🐎', armor: '⬣', artillery: '💣',
