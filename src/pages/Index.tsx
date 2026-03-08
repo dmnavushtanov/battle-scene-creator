@@ -5,9 +5,10 @@ import MapCanvas from '@/components/editor/MapCanvas';
 import PropertiesPanel from '@/components/editor/PropertiesPanel';
 import TimelinePanel from '@/components/editor/TimelinePanel';
 import NarrationOverlay from '@/components/editor/NarrationOverlay';
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Upload, Swords } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Upload, Swords, Menu, FilePlus, FolderOpen } from 'lucide-react';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useEditorStore } from '@/store/editorStore';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const StartMenu: React.FC<{ onNewProject: () => void; onLoadProject: (json: string) => void }> = ({ onNewProject, onLoadProject }) => {
   const fileRef = useRef<HTMLInputElement>(null);
