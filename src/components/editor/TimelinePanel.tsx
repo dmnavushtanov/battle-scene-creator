@@ -586,20 +586,37 @@ const TimelinePanel: React.FC = () => {
 
                 {/* Keyframe markers */}
                 {unitKfs.map((kf, idx) => {
+                  const kfKey = `${unit.id}:${idx}`;
                   const isKfSelected = selectedKeyframeIndex?.objectId === unit.id && selectedKeyframeIndex?.index === idx;
+                  const isMultiSelected = selectedKfSet.has(kfKey);
+                  const highlighted = isKfSelected || isMultiSelected;
                   return (
                     <div
                       key={`kf-${idx}`}
                       className={`absolute top-1 w-3 h-3 rounded-full border cursor-pointer hover:scale-125 transition-transform ${
-                        isKfSelected
+                        highlighted
                           ? 'bg-primary border-primary-foreground scale-125'
                           : 'bg-keyframe border-primary-foreground'
                       }`}
                       style={{ left: kf.time * pxPerMs - 6 }}
-                      title={`t=${formatTime(kf.time)} · Click to select, drag to move`}
+                      title={`t=${formatTime(kf.time)} · Click to select, Shift+click multi-select, drag to move`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedKeyframeIndex({ objectId: unit.id, index: idx });
+                        if (e.shiftKey) {
+                          // Toggle in multi-select set
+                          setSelectedKfSet((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(kfKey)) {
+                              next.delete(kfKey);
+                            } else {
+                              next.add(kfKey);
+                            }
+                            return next;
+                          });
+                        } else {
+                          setSelectedKfSet(new Set([kfKey]));
+                          setSelectedKeyframeIndex({ objectId: unit.id, index: idx });
+                        }
                         setSelectedIds([unit.id]);
                       }}
                       onMouseDown={(e) => {
