@@ -240,17 +240,38 @@ const TimelinePanel: React.FC = () => {
     window.addEventListener('mouseup', onUp);
   };
 
-  /** Keyframe drag handler */
+  /** Keyframe drag handler — supports multi-select */
   const makeKeyframeDragHandler = (objectId: string, kfIndex: number, origTime: number) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const kfKey = `${objectId}:${kfIndex}`;
+    const isInMultiSelect = selectedKfSet.has(kfKey);
     const startX = e.clientX;
+
+    // Collect all selected keyframes' original times for batch move
+    const selectedEntries: { objectId: string; index: number; origTime: number }[] = [];
+    if (isInMultiSelect && selectedKfSet.size > 1) {
+      const scene = useEditorStore.getState().getActiveScene();
+      selectedKfSet.forEach((key) => {
+        const [oid, idxStr] = key.split(':');
+        const idx = parseInt(idxStr, 10);
+        const kfs = scene.keyframesByObjectId[oid] || [];
+        if (kfs[idx]) {
+          selectedEntries.push({ objectId: oid, index: idx, origTime: kfs[idx].time });
+        }
+      });
+    } else {
+      selectedEntries.push({ objectId, index: kfIndex, origTime });
+    }
+
     const onMove = (me: MouseEvent) => {
       me.preventDefault();
       const dx = me.clientX - startX;
       const dtMs = dx / pxPerMs;
-      const newTime = Math.max(0, Math.min(totalDuration, origTime + dtMs));
-      useEditorStore.getState().updateKeyframe(objectId, kfIndex, { time: newTime });
+      for (const entry of selectedEntries) {
+        const newTime = Math.max(0, Math.min(totalDuration, entry.origTime + dtMs));
+        useEditorStore.getState().updateKeyframe(entry.objectId, entry.index, { time: newTime });
+      }
     };
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
