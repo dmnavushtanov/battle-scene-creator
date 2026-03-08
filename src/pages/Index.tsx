@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Toolbar from '@/components/editor/Toolbar';
 import AssetLibrary from '@/components/editor/AssetLibrary';
 import MapCanvas from '@/components/editor/MapCanvas';
