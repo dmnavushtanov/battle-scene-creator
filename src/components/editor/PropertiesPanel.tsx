@@ -25,9 +25,44 @@ const NarrationEditor: React.FC = () => {
   const setSelectedNarrationId = useEditorStore((s) => s.setSelectedNarrationId);
 
   const narration = activeScene.narrationEvents.find((n) => n.id === selectedNarrationId);
+
+  // Voice recording state
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
   if (!narration) return null;
 
   const update = (updates: Partial<NarrationEvent>) => updateNarration(narration.id, updates);
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onload = () => update({ audioUrl: reader.result as string });
+        reader.readAsDataURL(blob);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsVoiceRecording(true);
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Could not access microphone. Please allow microphone permissions.');
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsVoiceRecording(false);
+  };
 
   return (
     <div className="h-full bg-panel border-l border-border flex flex-col">
@@ -99,6 +134,42 @@ const NarrationEditor: React.FC = () => {
             <input type="number" value={narration.bgOpacity} onChange={(e) => update({ bgOpacity: Number(e.target.value) })} min={0} max={1} step={0.1} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground" />
           </div>
         </div>
+
+        {/* Voice Recording Section */}
+        <div className="pt-2 border-t border-border">
+          <label className="text-[9px] font-mono uppercase text-muted-foreground flex items-center gap-1">
+            <Mic size={10} /> Voice Recording
+          </label>
+          <div className="mt-1.5 space-y-2">
+            {narration.audioUrl ? (
+              <div className="space-y-1.5">
+                <audio src={narration.audioUrl} controls className="w-full h-8" style={{ colorScheme: 'dark' }} />
+                <button
+                  onClick={() => update({ audioUrl: undefined })}
+                  className="w-full py-1.5 text-[9px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors"
+                >
+                  Remove Recording
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={isVoiceRecording ? stopVoiceRecording : startVoiceRecording}
+                className={`w-full py-2 text-[10px] font-mono uppercase tracking-wider rounded flex items-center justify-center gap-2 transition-colors border ${
+                  isVoiceRecording
+                    ? 'bg-destructive/20 text-destructive border-destructive/50 animate-pulse'
+                    : 'bg-muted text-foreground border-border hover:bg-muted/80'
+                }`}
+              >
+                {isVoiceRecording ? <Square size={12} /> : <Mic size={12} />}
+                {isVoiceRecording ? 'Stop Recording' : 'Record Voice'}
+              </button>
+            )}
+            <p className="text-[8px] font-mono text-muted-foreground">
+              {narration.audioUrl ? 'Audio will play at narration start time.' : 'Record narration audio to play during the timeline.'}
+            </p>
+          </div>
+        </div>
+
         <button
           onClick={() => { removeNarration(narration.id); setSelectedNarrationId(null); }}
           className="w-full py-2 text-[10px] font-mono uppercase tracking-wider bg-destructive/10 text-destructive border border-destructive/30 rounded hover:bg-destructive/20 transition-colors"
