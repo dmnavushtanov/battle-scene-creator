@@ -15,11 +15,18 @@ const NarrationOverlay: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
   const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const soundRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
+
+  const soundEvents = activeScene.soundEvents || [];
 
   // Play narration audio during playback
   useEffect(() => {
     if (!isPlaying) {
-      // Stop all audio when not playing
       audioRefs.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
       return;
     }
@@ -39,7 +46,6 @@ const NarrationOverlay: React.FC = () => {
         }
       }
     }
-    // Stop audio for narrations no longer active
     audioRefs.current.forEach((audio, id) => {
       if (!activeNarrations.find((n) => n.id === id)) {
         audio.pause();
@@ -49,10 +55,44 @@ const NarrationOverlay: React.FC = () => {
     });
   }, [isPlaying, activeNarrations, currentTime]);
 
-  const activeScene = useEditorStore((s) => {
-    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
-    return scene || s.project.scenes[0];
-  });
+  // Play sound events during playback
+  useEffect(() => {
+    if (!isPlaying) {
+      soundRefs.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
+      return;
+    }
+
+    for (const snd of soundEvents) {
+      const isActive = currentTime >= snd.startTime && currentTime <= snd.startTime + snd.duration;
+      let audio = soundRefs.current.get(snd.id);
+
+      if (isActive) {
+        if (!audio) {
+          audio = new Audio(snd.audioUrl);
+          audio.volume = snd.volume;
+          soundRefs.current.set(snd.id, audio);
+        }
+        if (audio.paused) {
+          const offset = (currentTime - snd.startTime) / 1000;
+          audio.currentTime = Math.max(0, offset);
+          audio.play().catch(() => {});
+        }
+      } else if (audio && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    }
+
+    // Stop sounds that no longer exist
+    soundRefs.current.forEach((audio, id) => {
+      if (!soundEvents.find((s) => s.id === id)) {
+        audio.pause();
+        audio.currentTime = 0;
+        soundRefs.current.delete(id);
+      }
+    });
+  }, [isPlaying, soundEvents, currentTime]);
+
   const editingOverlay = !isPlaying && selectedOverlayId
     ? activeScene.overlayEvents.find((o) => o.id === selectedOverlayId) || null
     : null;
@@ -158,7 +198,7 @@ const Index: React.FC = () => {
               <NarrationOverlay />
             </div>
 
-            {/* Right panel collapse button - always visible outside the panel */}
+            {/* Right panel collapse button */}
             <button
               onClick={() => setRightPanelOpen(!rightPanelOpen)}
               title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}

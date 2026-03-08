@@ -330,15 +330,9 @@ const MapCanvas: React.FC = () => {
     return null;
   };
 
-  // Drag-and-drop handler for effects from sidebar
+  // Drag-and-drop handler for effects AND units from sidebar
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const effectData = e.dataTransfer.getData('application/effect-preset');
-    if (!effectData) return;
-    const presetIndex = parseInt(effectData, 10);
-    if (isNaN(presetIndex)) return;
-    const preset = EFFECT_PRESETS[presetIndex];
-    if (!preset) return;
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -347,6 +341,42 @@ const MapCanvas: React.FC = () => {
     const rect = container.getBoundingClientRect();
     const stageX = (e.clientX - rect.left - stagePosition.x) / stageScale;
     const stageY = (e.clientY - rect.top - stagePosition.y) / stageScale;
+
+    // Handle unit drops
+    const unitData = e.dataTransfer.getData('application/unit-type');
+    if (unitData) {
+      const customIconData = e.dataTransfer.getData('application/custom-icon');
+      const labelData = e.dataTransfer.getData('application/unit-label');
+      const obj: MapObject = {
+        id: uuid(),
+        type: 'unit',
+        unitType: unitData as any,
+        label: labelData || unitData,
+        customIcon: customIconData || undefined,
+        x: stageX,
+        y: stageY,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        layer: 'units',
+        visible: true,
+        locked: false,
+        width: 50,
+        height: 50,
+      };
+      addObject(obj);
+      useEditorStore.getState().setActiveTool('select');
+      setSelectedIds([obj.id]);
+      return;
+    }
+
+    // Handle effect drops
+    const effectData = e.dataTransfer.getData('application/effect-preset');
+    if (!effectData) return;
+    const presetIndex = parseInt(effectData, 10);
+    if (isNaN(presetIndex)) return;
+    const preset = EFFECT_PRESETS[presetIndex];
+    if (!preset) return;
 
     const hitUnit = objectOrder.map((id) => objectsById[id]).filter((o) => o?.type === 'unit').find((u) => {
       const s = (u.width || 50) / 2;

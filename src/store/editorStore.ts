@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
-import type { MapObject, Scene, Keyframe, ProjectData, DrawToolType, LayerType, ObjectSnapshot, UnitEffect, NarrationEvent, OverlayEvent, ActiveEffect, UnitGroup } from '@/domain/models';
+import type { MapObject, Scene, Keyframe, ProjectData, DrawToolType, LayerType, ObjectSnapshot, UnitEffect, NarrationEvent, OverlayEvent, ActiveEffect, UnitGroup, SoundEvent } from '@/domain/models';
 import { evaluateObjectAtTime, upsertKeyframe, evaluateEffectsAtTime } from '@/domain/services/timeline';
 import { createRecordingSession, captureInitialSnapshot, finalizeRecording, type RecordingSession } from '@/domain/services/recording';
 import { exportProject as serializeProject, importProject as deserializeProject } from '@/domain/services/serialization';
@@ -18,6 +18,7 @@ function createDefaultScene(): Scene {
     effectsByObjectId: {},
     narrationEvents: [],
     overlayEvents: [],
+    soundEvents: [],
     groups: {},
   };
 }
@@ -58,6 +59,7 @@ export interface EditorState {
   customIcons: CustomIcon[];
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
+  selectedKeyframeIndex: { objectId: string; index: number } | null;
 
   // Scene helpers
   getActiveScene: () => Scene;
@@ -86,6 +88,9 @@ export interface EditorState {
   batchAddKeyframes: (objectId: string, keyframes: Keyframe[]) => void;
   clearKeyframes: (objectId: string) => void;
   clearAllKeyframes: () => void;
+  removeKeyframe: (objectId: string, index: number) => void;
+  updateKeyframe: (objectId: string, index: number, updates: Partial<Keyframe>) => void;
+  setSelectedKeyframeIndex: (sel: { objectId: string; index: number } | null) => void;
 
   // Effects
   addEffect: (objectId: string, effect: UnitEffect) => void;
@@ -104,6 +109,11 @@ export interface EditorState {
   updateOverlay: (id: string, updates: Partial<OverlayEvent>) => void;
   removeOverlay: (id: string) => void;
   setSelectedOverlayId: (id: string | null) => void;
+
+  // Sounds
+  addSound: (event: SoundEvent) => void;
+  updateSound: (id: string, updates: Partial<SoundEvent>) => void;
+  removeSound: (id: string) => void;
 
   // Groups
   createGroup: (name: string, memberIds: string[]) => void;
@@ -166,6 +176,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     customIcons: [],
     selectedNarrationId: null,
     selectedOverlayId: null,
+    selectedKeyframeIndex: null,
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
@@ -197,7 +208,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const { [id]: _, ...rest } = scene.objectsById;
         const { [id]: __, ...kfRest } = scene.keyframesByObjectId;
         const { [id]: ___, ...efRest } = scene.effectsByObjectId;
-        // Remove from groups
         const updatedGroups = { ...scene.groups };
         for (const [gid, group] of Object.entries(updatedGroups)) {
           if (group.memberIds.includes(id)) {
@@ -289,6 +299,31 @@ export const useEditorStore = create<EditorState>((set, get) => {
     clearAllKeyframes: () => {
       get()._updateActiveScene((s) => ({ ...s, keyframesByObjectId: {} }));
     },
+
+    removeKeyframe: (objectId, index) => {
+      get()._updateActiveScene((s) => {
+        const kfs = s.keyframesByObjectId[objectId] || [];
+        const updated = kfs.filter((_, i) => i !== index);
+        if (updated.length === 0) {
+          const { [objectId]: _, ...rest } = s.keyframesByObjectId;
+          return { ...s, keyframesByObjectId: rest };
+        }
+        return { ...s, keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: updated } };
+      });
+      set({ selectedKeyframeIndex: null });
+    },
+
+    updateKeyframe: (objectId, index, updates) => {
+      get()._updateActiveScene((s) => {
+        const kfs = [...(s.keyframesByObjectId[objectId] || [])];
+        if (index < 0 || index >= kfs.length) return s;
+        kfs[index] = { ...kfs[index], ...updates };
+        kfs.sort((a, b) => a.time - b.time);
+        return { ...s, keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: kfs } };
+      });
+    },
+
+    setSelectedKeyframeIndex: (sel) => set({ selectedKeyframeIndex: sel }),
 
     // Effects CRUD
     addEffect: (objectId, effect) => {
@@ -385,6 +420,30 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     setSelectedOverlayId: (id) => set({ selectedOverlayId: id, selectedNarrationId: null, selectedIds: [] }),
+
+    // Sounds CRUD
+    addSound: (event) => {
+      get()._updateActiveScene((s) => ({
+        ...s,
+        soundEvents: [...(s.soundEvents || []), event],
+      }));
+    },
+
+    updateSound: (id, updates) => {
+      get()._updateActiveScene((s) => ({
+        ...s,
+        soundEvents: (s.soundEvents || []).map((snd) =>
+          snd.id === id ? { ...snd, ...updates } : snd
+        ),
+      }));
+    },
+
+    removeSound: (id) => {
+      get()._updateActiveScene((s) => ({
+        ...s,
+        soundEvents: (s.soundEvents || []).filter((snd) => snd.id !== id),
+      }));
+    },
 
     // Groups
     createGroup: (name, memberIds) => {
@@ -606,8 +665,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     importProject: (json) => {
       try {
         const data = deserializeProject(json);
-        // Ensure groups exist on all scenes
-        data.scenes = data.scenes.map((s) => ({ ...s, groups: s.groups || {} }));
+        data.scenes = data.scenes.map((s) => ({ ...s, groups: s.groups || {}, soundEvents: s.soundEvents || [] }));
         set({
           project: data,
           activeSceneId: data.scenes[0]?.id || '',
@@ -622,6 +680,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           activeOverlay: null,
           selectedNarrationId: null,
           selectedOverlayId: null,
+          selectedKeyframeIndex: null,
         });
       } catch (e) {
         console.error('Invalid project JSON', e);

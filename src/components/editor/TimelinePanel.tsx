@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, ChevronRight, ChevronDown } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, ChevronRight, ChevronDown, Volume2 } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
-import type { NarrationEvent, OverlayEvent, UnitEffect } from '@/domain/models';
+import type { NarrationEvent, OverlayEvent, UnitEffect, SoundEvent } from '@/domain/models';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 const EFFECT_COLORS: Record<string, string> = {
   explosion: '#ff6600', shake: '#ffaa00', crack: '#888888', blood: '#cc0000', smoke: '#9e9e9e', fire: '#ff4400', gunshot: '#ffdd00',
@@ -21,10 +29,15 @@ const TimelinePanel: React.FC = () => {
   const removeNarration = useEditorStore((s) => s.removeNarration);
   const addOverlay = useEditorStore((s) => s.addOverlay);
   const removeOverlay = useEditorStore((s) => s.removeOverlay);
+  const removeSound = useEditorStore((s) => s.removeSound);
   const setSelectedNarrationId = useEditorStore((s) => s.setSelectedNarrationId);
   const setSelectedOverlayId = useEditorStore((s) => s.setSelectedOverlayId);
   const selectedNarrationId = useEditorStore((s) => s.selectedNarrationId);
   const selectedOverlayId = useEditorStore((s) => s.selectedOverlayId);
+  const removeObject = useEditorStore((s) => s.removeObject);
+  const removeKeyframe = useEditorStore((s) => s.removeKeyframe);
+  const selectedKeyframeIndex = useEditorStore((s) => s.selectedKeyframeIndex);
+  const setSelectedKeyframeIndex = useEditorStore((s) => s.setSelectedKeyframeIndex);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -36,6 +49,8 @@ const TimelinePanel: React.FC = () => {
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
   const [expandedEffects, setExpandedEffects] = useState<Record<string, boolean>>({});
+  const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
+  const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
 
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
@@ -84,20 +99,24 @@ const TimelinePanel: React.FC = () => {
     return () => { if (playRef.current) cancelAnimationFrame(playRef.current); };
   }, [isPlaying]);
 
-  // Sort units: grouped units first (sorted by group), then ungrouped
-  const allUnits = activeScene.objectOrder
+  // Separate units and standalone effects
+  const allObjects = activeScene.objectOrder
     .map((id) => activeScene.objectsById[id])
-    .filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
+    .filter(Boolean);
+
+  const unitObjects = allObjects.filter((o) => o.type === 'unit');
+  const standaloneEffects = allObjects.filter((o) => o.type === 'effect');
 
   const groups = activeScene.groups || {};
   const groupList = Object.values(groups);
 
+  // Sort units by group
   const sortedUnits = React.useMemo(() => {
-    const grouped: typeof allUnits = [];
-    const ungrouped: typeof allUnits = [];
-    const unitsByGroup: Record<string, typeof allUnits> = {};
+    const grouped: typeof unitObjects = [];
+    const ungrouped: typeof unitObjects = [];
+    const unitsByGroup: Record<string, typeof unitObjects> = {};
 
-    for (const unit of allUnits) {
+    for (const unit of unitObjects) {
       const group = groupList.find((g) => g.memberIds.includes(unit.id));
       if (group) {
         if (!unitsByGroup[group.id]) unitsByGroup[group.id] = [];
@@ -107,7 +126,6 @@ const TimelinePanel: React.FC = () => {
       }
     }
 
-    // Add grouped units in group order
     for (const group of groupList) {
       if (unitsByGroup[group.id]) {
         grouped.push(...unitsByGroup[group.id]);
@@ -115,10 +133,24 @@ const TimelinePanel: React.FC = () => {
     }
 
     return [...grouped, ...ungrouped];
-  }, [allUnits, groupList]);
+  }, [unitObjects, groupList]);
+
+  // Group standalone effects by effect type
+  const standaloneEffectsByType = React.useMemo(() => {
+    const byType: Record<string, typeof standaloneEffects> = {};
+    for (const eff of standaloneEffects) {
+      const t = eff.effectType || 'unknown';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(eff);
+    }
+    return byType;
+  }, [standaloneEffects]);
+  const standaloneEffectTypes = Object.keys(standaloneEffectsByType);
+  const [expandedStandaloneEffects, setExpandedStandaloneEffects] = useState<Record<string, boolean>>({});
 
   const narrationEvents = activeScene.narrationEvents || [];
   const overlayEvents = activeScene.overlayEvents || [];
+  const soundEvents = activeScene.soundEvents || [];
 
   const handleAddNarration = () => {
     const lastEnd = narrationEvents.reduce((max, n) => Math.max(max, n.startTime + n.duration), 0);
@@ -147,6 +179,10 @@ const TimelinePanel: React.FC = () => {
     setExpandedEffects((prev) => ({ ...prev, [unitId]: !prev[unitId] }));
   };
 
+  const toggleStandaloneEffectExpanded = (effType: string) => {
+    setExpandedStandaloneEffects((prev) => ({ ...prev, [effType]: !prev[effType] }));
+  };
+
   /** Generic drag handler for moving/resizing timeline blocks */
   const makeBlockDragHandler = (
     type: 'move' | 'resize-left' | 'resize-right',
@@ -170,6 +206,21 @@ const TimelinePanel: React.FC = () => {
         const newDur = Math.max(100, origDur + dtMs);
         updateFn(origStart, newDur);
       }
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  /** Keyframe drag handler for adjusting time */
+  const makeKeyframeDragHandler = (objectId: string, kfIndex: number, origTime: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const startX = e.clientX;
+    const onMove = (me: MouseEvent) => {
+      const dx = me.clientX - startX;
+      const dtMs = dx / pxPerMs;
+      const newTime = Math.max(0, Math.min(totalDuration, origTime + dtMs));
+      useEditorStore.getState().updateKeyframe(objectId, kfIndex, { time: newTime });
     };
     const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
@@ -231,6 +282,14 @@ const TimelinePanel: React.FC = () => {
       byType[eff.type].push(eff);
     }
     return byType;
+  };
+
+  const confirmDeleteTrack = () => {
+    if (deleteTrackId) {
+      removeObject(deleteTrackId);
+      setDeleteTrackId(null);
+      setDeleteTrackLabel('');
+    }
   };
 
   return (
@@ -363,7 +422,37 @@ const TimelinePanel: React.FC = () => {
           })}
         </div>
 
-        {/* Unit tracks - sorted by group, with collapsible effect sub-rows */}
+        {/* Sound track */}
+        <div className="relative h-6 mb-0.5 rounded-sm border border-primary/30 bg-primary/5" style={{ width: timelineWidth }}>
+          <span className="absolute left-1 top-0.5 text-[9px] font-mono text-primary/70 uppercase pointer-events-none flex items-center gap-1">
+            <Volume2 size={9} /> Sound
+          </span>
+          {soundEvents.map((snd) => (
+            <TimelineBlock
+              key={snd.id}
+              left={snd.startTime * pxPerMs}
+              width={snd.duration * pxPerMs}
+              label={snd.label}
+              sublabel={`${(snd.duration / 1000).toFixed(1)}s`}
+              isSelected={false}
+              bgColor="#d4a84355"
+              borderColor="#d4a843"
+              onClick={(e) => { e.stopPropagation(); }}
+              onDelete={(e) => { e.stopPropagation(); removeSound(snd.id); }}
+              onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+              }, snd.startTime, snd.duration)}
+              onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+              }, snd.startTime, snd.duration)}
+              onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                useEditorStore.getState().updateSound(snd.id, { startTime: st, duration: dur });
+              }, snd.startTime, snd.duration)}
+            />
+          ))}
+        </div>
+
+        {/* Unit tracks - sorted by group */}
         {sortedUnits.slice(0, 50).map((unit) => {
           const unitKfs = activeScene.keyframesByObjectId[unit.id] || [];
           const unitEffects = activeScene.effectsByObjectId[unit.id] || [];
@@ -378,7 +467,7 @@ const TimelinePanel: React.FC = () => {
             <div key={unit.id} className="mb-0.5">
               {/* Main unit row */}
               <div
-                className={`relative h-6 rounded-sm border cursor-pointer ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
+                className={`relative h-6 rounded-sm border cursor-pointer group ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
                 style={{
                   width: timelineWidth,
                   borderLeftWidth: group ? 3 : undefined,
@@ -404,13 +493,54 @@ const TimelinePanel: React.FC = () => {
                     </button>
                   )}
                   {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
-                  {unit.label || unit.unitType || 'Effect'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
+                  {unit.label || unit.unitType || 'Unit'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
                   {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
                 </span>
-                {/* Keyframe markers */}
-                {unitKfs.map((kf, idx) => (
-                  <div key={`kf-${idx}`} className="absolute top-1 w-3 h-3 bg-keyframe rounded-full border border-primary-foreground pointer-events-none" style={{ left: kf.time * pxPerMs - 6 }} title={`t=${formatTime(kf.time)}`} />
-                ))}
+
+                {/* Delete track button */}
+                <button
+                  className="absolute right-1 top-0.5 text-destructive/50 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteTrackId(unit.id);
+                    setDeleteTrackLabel(unit.label || unit.unitType || 'this track');
+                  }}
+                  title="Delete track"
+                >
+                  <Trash2 size={10} />
+                </button>
+
+                {/* Keyframe markers - clickable and draggable */}
+                {unitKfs.map((kf, idx) => {
+                  const isKfSelected = selectedKeyframeIndex?.objectId === unit.id && selectedKeyframeIndex?.index === idx;
+                  return (
+                    <div
+                      key={`kf-${idx}`}
+                      className={`absolute top-1 w-3 h-3 rounded-full border cursor-pointer hover:scale-125 transition-transform ${
+                        isKfSelected
+                          ? 'bg-primary border-primary-foreground scale-125'
+                          : 'bg-keyframe border-primary-foreground'
+                      }`}
+                      style={{ left: kf.time * pxPerMs - 6 }}
+                      title={`t=${formatTime(kf.time)} · Click to select, drag to move`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedKeyframeIndex({ objectId: unit.id, index: idx });
+                        setSelectedIds([unit.id]);
+                      }}
+                      onMouseDown={(e) => {
+                        if (e.button === 0) {
+                          makeKeyframeDragHandler(unit.id, idx, kf.time)(e);
+                        }
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        removeKeyframe(unit.id, idx);
+                      }}
+                    />
+                  );
+                })}
                 {/* Compact effect dots when collapsed */}
                 {!isEffectsExpanded && unitEffects.map((eff) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
@@ -477,12 +607,104 @@ const TimelinePanel: React.FC = () => {
           );
         })}
 
-        {sortedUnits.length === 0 && (
+        {/* Standalone effects section - collapsible by type */}
+        {standaloneEffectTypes.length > 0 && (
+          <div className="mt-1 pt-1 border-t border-border/30">
+            <span className="text-[8px] font-mono uppercase text-muted-foreground/60 mb-0.5 block">Map Effects</span>
+            {standaloneEffectTypes.map((effType) => {
+              const effs = standaloneEffectsByType[effType];
+              const preset = EFFECT_PRESETS.find((p) => p.type === effType);
+              const effColor = EFFECT_COLORS[effType] || '#ff6600';
+              const isExpanded = expandedStandaloneEffects[effType] ?? true;
+
+              return (
+                <div key={`standalone-${effType}`} className="mb-0.5">
+                  <div
+                    className="relative h-5 rounded-sm border border-border/50 cursor-pointer group"
+                    style={{ width: timelineWidth, borderLeftWidth: 3, borderLeftColor: effColor, backgroundColor: effColor + '08' }}
+                    onClick={() => toggleStandaloneEffectExpanded(effType)}
+                  >
+                    <span className="absolute left-1 top-0 text-[8px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
+                      <span className="pointer-events-auto">{isExpanded ? <ChevronDown size={8} /> : <ChevronRight size={8} />}</span>
+                      {preset?.icon || '?'} {preset?.label || effType} ({effs.length})
+                    </span>
+                    {/* Show blocks on collapsed row */}
+                    {!isExpanded && effs.map((effObj) => {
+                      const objEffects = activeScene.effectsByObjectId[effObj.id] || [];
+                      return objEffects.map((eff) => (
+                        <div key={eff.id} className="absolute top-1.5 w-2 h-2 rounded-full pointer-events-none" style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }} />
+                      ));
+                    })}
+                  </div>
+                  {isExpanded && effs.map((effObj) => {
+                    const objEffects = activeScene.effectsByObjectId[effObj.id] || [];
+                    return objEffects.map((eff) => {
+                      const effLeft = eff.startTime * pxPerMs;
+                      const effWidth = Math.max(eff.duration * pxPerMs, 16);
+                      return (
+                        <div key={eff.id} className="relative h-4 ml-4 rounded-sm border border-border/30" style={{ width: timelineWidth - 16, backgroundColor: effColor + '05' }}>
+                          <TimelineBlock
+                            left={effLeft}
+                            width={effWidth}
+                            label={`${preset?.icon || '?'} ${effObj.label || ''}`}
+                            sublabel={formatTime(eff.startTime)}
+                            isSelected={selectedIds.includes(effObj.id)}
+                            bgColor={effColor + '55'}
+                            borderColor={effColor}
+                            onClick={(e) => { e.stopPropagation(); setSelectedIds([effObj.id]); }}
+                            onDelete={(e) => { e.stopPropagation(); setDeleteTrackId(effObj.id); setDeleteTrackLabel(effObj.label || 'this effect'); }}
+                            onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                              useEditorStore.getState().updateEffect(effObj.id, eff.id, { startTime: st, duration: dur });
+                            }, eff.startTime, eff.duration)}
+                            onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                              useEditorStore.getState().updateEffect(effObj.id, eff.id, { startTime: st, duration: dur });
+                            }, eff.startTime, eff.duration)}
+                            onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                              useEditorStore.getState().updateEffect(effObj.id, eff.id, { startTime: st, duration: dur });
+                            }, eff.startTime, eff.duration)}
+                          />
+                        </div>
+                      );
+                    });
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {sortedUnits.length === 0 && standaloneEffectTypes.length === 0 && (
           <div className="text-center py-4 text-[10px] font-mono text-muted-foreground">
             Add units to see timeline tracks
           </div>
         )}
       </div>
+
+      {/* Delete track confirmation dialog */}
+      <Dialog open={!!deleteTrackId} onOpenChange={(open) => { if (!open) { setDeleteTrackId(null); setDeleteTrackLabel(''); } }}>
+        <DialogContent className="sm:max-w-[340px] bg-panel border-border">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-mono uppercase text-primary">Delete Track</DialogTitle>
+            <DialogDescription className="text-xs font-mono text-muted-foreground">
+              Are you sure you want to delete "{deleteTrackLabel}"? This will remove all its keyframes, effects, and data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => { setDeleteTrackId(null); setDeleteTrackLabel(''); }}
+              className="px-4 py-2 text-[10px] font-mono uppercase bg-muted border border-border rounded text-foreground hover:bg-muted/80 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteTrack}
+              className="px-4 py-2 text-[10px] font-mono uppercase bg-destructive/20 text-destructive border border-destructive/50 rounded hover:bg-destructive/30 transition-colors"
+            >
+              Delete
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
