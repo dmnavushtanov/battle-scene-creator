@@ -19,6 +19,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 
 const TimelinePanel: React.FC = () => {
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -302,13 +308,21 @@ const TimelinePanel: React.FC = () => {
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="bg-timeline border-t border-border flex flex-col h-full select-none">
       {/* Controls bar */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b border-border flex-shrink-0 bg-timeline z-20 ${timeframeLocked ? 'sticky top-0' : ''}`}>
+        <Tooltip><TooltipTrigger asChild>
         <button onClick={() => seekTo(0)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipBack size={14} /></button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to start</p></TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
         <button onClick={() => setIsPlaying(!isPlaying)} className="p-1.5 bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors">
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
         </button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">{isPlaying ? 'Pause playback' : 'Play animation'}</p></TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+        <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Jump to end</p></TooltipContent></Tooltip>
         <button onClick={() => seekTo(totalDuration)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"><SkipForward size={14} /></button>
         <span className="font-mono text-xs text-primary ml-2 amber-glow">{formatTime(currentTime)}</span>
         <span className="font-mono text-[10px] text-muted-foreground">/ {formatTime(totalDuration)}</span>
@@ -339,6 +353,7 @@ const TimelinePanel: React.FC = () => {
         </DropdownMenu>
 
         {/* Lock timeframe toggle */}
+        <Tooltip><TooltipTrigger asChild>
         <button
           onClick={() => setTimeframeLocked(!timeframeLocked)}
           className={`p-1.5 rounded transition-colors flex items-center gap-1 text-[9px] font-mono uppercase border ${
@@ -346,23 +361,29 @@ const TimelinePanel: React.FC = () => {
               ? 'bg-primary/20 text-primary border-primary/50'
               : 'text-muted-foreground hover:text-foreground border-border'
           }`}
-          title={timeframeLocked ? 'Unlock timeframe' : 'Lock timeframe'}
         >
           {timeframeLocked ? <Lock size={10} /> : <Unlock size={10} />}
           {timeframeLocked ? 'Locked' : 'Lock'}
         </button>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">{timeframeLocked ? 'Unlock ruler — allows scrolling' : 'Lock ruler to top when scrolling'}</p></TooltipContent></Tooltip>
 
         {/* Zoom controls */}
         <div className="flex items-center gap-1 border border-border rounded px-1 ml-1">
-          <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom out">
+          <Tooltip><TooltipTrigger asChild>
+          <button onClick={() => setTimelineZoom(Math.max(0.25, timelineZoom - 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
             <ZoomOut size={12} />
           </button>
+          </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Zoom timeline out</p></TooltipContent></Tooltip>
           <span className="text-[9px] font-mono text-muted-foreground min-w-[32px] text-center">{Math.round(timelineZoom * 100)}%</span>
-          <button onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Zoom in">
+          <Tooltip><TooltipTrigger asChild>
+          <button onClick={() => setTimelineZoom(Math.min(4, timelineZoom + 0.25))} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
             <ZoomIn size={12} />
           </button>
+          </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Zoom timeline in</p></TooltipContent></Tooltip>
         </div>
-        <span className="text-[10px] font-mono text-muted-foreground ml-2">{totalKeyframes} kf</span>
+        <Tooltip><TooltipTrigger asChild>
+        <span className="text-[10px] font-mono text-muted-foreground ml-2 cursor-default">{totalKeyframes} kf</span>
+        </TooltipTrigger><TooltipContent side="bottom"><p className="text-xs">Total keyframes in this scene</p></TooltipContent></Tooltip>
       </div>
 
       {/* Timeline tracks */}
@@ -726,6 +747,7 @@ const TimelinePanel: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 };
 
