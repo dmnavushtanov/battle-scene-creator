@@ -91,6 +91,7 @@ export interface EditorState {
   removeKeyframe: (objectId: string, index: number) => void;
   updateKeyframe: (objectId: string, index: number, updates: Partial<Keyframe>) => void;
   setSelectedKeyframeIndex: (sel: { objectId: string; index: number } | null) => void;
+  setSelectedEffectId: (sel: { objectId: string; effectId: string } | null) => void;
 
   // Effects
   addEffect: (objectId: string, effect: UnitEffect) => void;
