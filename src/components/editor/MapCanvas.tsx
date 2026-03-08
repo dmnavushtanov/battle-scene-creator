@@ -244,9 +244,9 @@ const MapCanvas: React.FC = () => {
 
   const customIconImages = useCustomIconCache(customIconSources);
 
-  const drawings = objectOrder
+  const arrows = objectOrder
     .map((id) => objectsById[id])
-    .filter((o) => o && o.type === 'drawing');
+    .filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
 
   return (
     <div ref={containerRef} className="flex-1 bg-canvas-bg tactical-grid overflow-hidden relative">
