@@ -554,24 +554,76 @@ const TimelinePanel: React.FC = () => {
                   );
                 })}
 
-                {/* Effect dots inline — colored dot at startTime, clickable */}
-                {unitEffects.map((eff) => {
+                {/* Effect indicator dots + expand toggle */}
+                {unitEffects.length > 0 && (
+                  <button
+                    className="absolute right-8 top-0.5 text-[8px] font-mono text-muted-foreground hover:text-foreground z-10 flex items-center gap-0.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedUnitEffects(prev => ({ ...prev, [unit.id]: !prev[unit.id] }));
+                    }}
+                    title={expandedUnitEffects[unit.id] ? 'Collapse effects' : 'Expand effects'}
+                  >
+                    {expandedUnitEffects[unit.id] ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                    {unitEffects.length}fx
+                  </button>
+                )}
+                {/* Small colored dots as quick indicators */}
+                {unitEffects.map((eff, effIdx) => {
                   const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
                   return (
                     <div
                       key={eff.id}
-                      className="absolute top-1.5 w-3 h-3 rounded-full cursor-pointer hover:ring-2 hover:ring-primary/50 z-10"
-                      style={{ left: eff.startTime * pxPerMs - 6, backgroundColor: effColor }}
-                      title={`${eff.type} @ ${formatTime(eff.startTime)}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedIds([unit.id]);
-                        useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
-                      }}
+                      className="absolute bottom-0.5 w-2 h-2 rounded-full pointer-events-none"
+                      style={{ left: eff.startTime * pxPerMs - 4, backgroundColor: effColor }}
                     />
                   );
                 })}
               </div>
+
+              {/* Expanded effect sub-rows */}
+              {expandedUnitEffects[unit.id] && unitEffects.length > 0 && (
+                <div className="ml-4 space-y-0.5 mt-0.5">
+                  {unitEffects.map((eff) => {
+                    const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                    const effLeft = eff.startTime * pxPerMs;
+                    const effWidth = Math.max(8, eff.duration * pxPerMs);
+                    const selectedEffectId = useEditorStore.getState().selectedEffectId;
+                    const isEffSelected = selectedEffectId?.objectId === unit.id && selectedEffectId?.effectId === eff.id;
+                    return (
+                      <div key={eff.id} className="relative h-4 rounded-sm border border-border/30" style={{ width: timelineWidth - 16, backgroundColor: effColor + '08' }}>
+                        <TimelineBlock
+                          left={effLeft}
+                          width={effWidth}
+                          label={eff.type}
+                          sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
+                          isSelected={isEffSelected}
+                          bgColor={effColor + '55'}
+                          borderColor={effColor}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedIds([unit.id]);
+                            useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
+                          }}
+                          onDelete={(e) => {
+                            e.stopPropagation();
+                            useEditorStore.getState().removeEffect(unit.id, eff.id);
+                          }}
+                          onMoveDown={makeBlockDragHandler('move', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                          onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                          onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
