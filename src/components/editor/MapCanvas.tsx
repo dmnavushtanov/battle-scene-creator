@@ -252,6 +252,13 @@ const MapCanvas: React.FC = () => {
       const coords = getStageCoords(stage.getPointerPosition()!);
       setDrawingArrow({ ...drawingArrow, x2: coords.x, y2: coords.y });
     }
+    // Marquee selection: update rect
+    if (isMarqueeSelecting.current && selectionRect) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      setSelectionRect({ ...selectionRect, x2: coords.x, y2: coords.y });
+    }
   };
 
   const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
