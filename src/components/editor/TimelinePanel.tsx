@@ -48,12 +48,13 @@ const TimelinePanel: React.FC = () => {
   });
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
+  const selectedEffectId = useEditorStore((s) => s.selectedEffectId);
+  const setSelectedEffectId = useEditorStore((s) => s.setSelectedEffectId);
 
   const [timelineZoom, setTimelineZoom] = useState(1);
   const [timeframeLocked, setTimeframeLocked] = useState(false);
   const [deleteTrackId, setDeleteTrackId] = useState<string | null>(null);
   const [deleteTrackLabel, setDeleteTrackLabel] = useState('');
-  const [expandedUnitEffects, setExpandedUnitEffects] = useState<Record<string, boolean>>({});
   const totalDuration = activeScene.duration;
   const timelineWidth = Math.max(600, 800 * timelineZoom);
   const pxPerMs = timelineWidth / Math.max(totalDuration, 1);
@@ -359,9 +360,9 @@ const TimelinePanel: React.FC = () => {
       </div>
 
       {/* Timeline tracks */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 py-2">
+      <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-tactical px-3 pb-2 pt-0 bg-timeline">
         {/* Time ruler */}
-        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-10 bg-timeline border-b border-border' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
+        <div className={`relative h-5 mb-1 cursor-pointer ${timeframeLocked ? 'sticky top-0 z-20 bg-timeline shadow-[0_1px_0_hsl(var(--border))]' : ''}`} onMouseDown={handleRulerScrub} style={{ width: timelineWidth }}>
           {isRecording && recordingSession && (
             <div className="absolute top-0 h-full bg-destructive/15 border-l border-r border-destructive/40" style={{ left: recordingSession.startTime * pxPerMs, width: recordingSession.durationMs * pxPerMs }} />
           )}
@@ -495,45 +496,6 @@ const TimelinePanel: React.FC = () => {
 
           return (
             <div key={unit.id} className="mb-0.5">
-              {/* Effect tracks directly above unit track */}
-              {unitEffects.map((eff) => {
-                const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
-                const effLeft = eff.startTime * pxPerMs;
-                const effWidth = Math.max(8, eff.duration * pxPerMs);
-                const selectedEffectId = useEditorStore.getState().selectedEffectId;
-                const isEffSelected = selectedEffectId?.objectId === unit.id && selectedEffectId?.effectId === eff.id;
-                return (
-                  <div key={eff.id} className="relative h-4 rounded-sm border border-border/30 mb-px" style={{ width: timelineWidth, borderLeftWidth: 3, borderLeftColor: effColor, backgroundColor: effColor + '08' }}>
-                    <TimelineBlock
-                      left={effLeft}
-                      width={effWidth}
-                      label={eff.type}
-                      sublabel={`${(eff.duration / 1000).toFixed(1)}s`}
-                      isSelected={isEffSelected}
-                      bgColor={effColor + '55'}
-                      borderColor={effColor}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedIds([unit.id]);
-                        useEditorStore.getState().setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
-                      }}
-                      onDelete={(e) => {
-                        e.stopPropagation();
-                        useEditorStore.getState().removeEffect(unit.id, eff.id);
-                      }}
-                      onMoveDown={makeBlockDragHandler('move', (st, dur) => {
-                        useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                      }, eff.startTime, eff.duration)}
-                      onResizeLeft={makeBlockDragHandler('resize-left', (st, dur) => {
-                        useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                      }, eff.startTime, eff.duration)}
-                      onResizeRight={makeBlockDragHandler('resize-right', (st, dur) => {
-                        useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
-                      }, eff.startTime, eff.duration)}
-                    />
-                  </div>
-                );
-              })}
               {/* Main unit track */}
               <div
                 className={`relative h-6 rounded-sm border cursor-pointer group ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
@@ -599,6 +561,53 @@ const TimelinePanel: React.FC = () => {
                         removeKeyframe(unit.id, idx);
                       }}
                     />
+                  );
+                })}
+
+                {/* Effect tracks over the unit track */}
+                {unitEffects.map((eff) => {
+                  const effColor = EFFECT_COLORS[eff.type] || '#ff6600';
+                  const effLeft = eff.startTime * pxPerMs;
+                  const effWidth = Math.max(10, eff.duration * pxPerMs);
+                  const isEffSelected = selectedEffectId?.objectId === unit.id && selectedEffectId?.effectId === eff.id;
+                  return (
+                    <div
+                      key={eff.id}
+                      className={`absolute bottom-0.5 h-2 rounded-sm border cursor-grab active:cursor-grabbing group/effect ${isEffSelected ? 'ring-1 ring-foreground/60' : ''}`}
+                      style={{ left: effLeft, width: effWidth, backgroundColor: effColor + (isEffSelected ? 'cc' : '88'), borderColor: effColor }}
+                      title={`${eff.type} · ${(eff.duration / 1000).toFixed(1)}s`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedIds([unit.id]);
+                        setSelectedEffectId({ objectId: unit.id, effectId: eff.id });
+                      }}
+                      onMouseDown={(e) => {
+                        if (e.button === 0) {
+                          makeBlockDragHandler('move', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)(e);
+                        }
+                      }}
+                    >
+                      <div
+                        className="absolute left-0 top-0 w-1 h-full cursor-ew-resize opacity-0 group-hover/effect:opacity-100 bg-foreground/20"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          makeBlockDragHandler('resize-left', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)(e);
+                        }}
+                      />
+                      <div
+                        className="absolute right-0 top-0 w-1 h-full cursor-ew-resize opacity-0 group-hover/effect:opacity-100 bg-foreground/20"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          makeBlockDragHandler('resize-right', (st, dur) => {
+                            useEditorStore.getState().updateEffect(unit.id, eff.id, { startTime: st, duration: dur });
+                          }, eff.startTime, eff.duration)(e);
+                        }}
+                      />
+                    </div>
                   );
                 })}
               </div>
