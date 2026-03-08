@@ -27,77 +27,94 @@ A 100% browser-based tactical battle map editor for creating animated military-s
 - **Drag-and-drop units** from the sidebar onto the canvas (or click to add at random position)
 - Grid overlay, zoom (scroll wheel), pan (**middle mouse button** only)
 - Upload custom unit icons (auto-resized, max 200KB)
-- **Click-away deselection** — left-click on empty canvas to deselect all objects, narrations, and overlays
-- **Path tool** — click waypoints on the canvas, double-click to finalize as keyframes for the selected unit
+- **Click-away deselection** — left-click on empty canvas deselects all; **Escape key** also deselects
+- **Path tool** — right-click a unit → "Draw Path", click waypoints, right-click to save, Escape to cancel
+
+### Path Drawing (Improved UX)
+- **Activate**: Via toolbar Path button OR right-click context menu on a unit → "Draw Path"
+- **Add waypoints**: Left-click on canvas to place points
+- **Save path**: Right-click to finalize waypoints as keyframes
+- **Cancel**: Press Escape to cancel and discard waypoints
+- **Status bar**: Shows clear instructions during drawing: "Left-click: add point, Right-click: save, Esc: cancel"
+- **Auto-switch**: Returns to Select tool after saving a path
+- Path tool creates keyframes directly (separate from the Record workflow)
 
 ### Effects System
-- **7 effect types**: Shake, Explosion, Crack, Blood, Smoke, Fire, Gunshot
-- **Drag-and-drop only**: Drag effect presets from the Effects tab in the sidebar onto units or empty canvas
+- **7 effect types**: Shake, Explosion, Crack (shattered glass), Blood, Smoke, Fire, Gunshot
+- **Drag-and-drop only**: Drag effect presets from the Effects tab onto units or empty canvas
 - Effects attach to units with configurable start time, duration, and intensity
-- **Cinematic visuals**: Explosions with shockwave rings + debris particles, volumetric smoke with multi-frequency turbulence, layered fire with flickering flames + rising embers, organic blood splatters with drip trails, fracture webs with depth shading, musket muzzle flash with smoke puff
+- **Cinematic visuals**: Explosions with shockwave rings, volumetric smoke, layered fire, organic blood splatters, shattered glass cracks with refraction highlights, musket muzzle flash
 - **Persistent effects**: Crack and blood remain visible after the effect ends
-- **Standalone map effects**: Drop effects on empty space to create map-level effects (fire on terrain, etc.)
-- **Hidden during playback**: Standalone effect placeholders (labels, circles) are hidden during playback — only the visual effects show
-- **Effect badges**: Units with effects show colored indicator dots at all times, even outside playback
+- **Standalone map effects**: Drop effects on empty space for map-level effects
+- **Effect badges**: Units with effects show colored indicator dots at all times
 
 ### Sound System
-- **Upload audio files** (MP3, WAV, OGG, WebM) via the Sounds tab in the sidebar
-- Sounds are placed on a dedicated timeline track
-- Audio plays during playback at the configured start time and duration
-- Drag and resize sound blocks on the timeline
+- **Upload audio files** (MP3, WAV, OGG, WebM) via the Sounds tab
+- Sounds placed on a dedicated timeline track
+- Audio plays during playback at configured start time and duration
 
 ### Narration & Overlay System
-- **Narration track**: Add text captions that appear during playback with configurable position, font, animation (fade/typewriter/slide-up), and colors
-- **Voice recording**: Record narration audio directly in the browser via microphone
-- **Overlay track**: Add full-screen image cutaways with blur/dim background effects, titles, subtitles, and transitions
-- **Live overlay preview**: When editing an overlay (selected but not playing), it shows on the canvas with an "OVERLAY PREVIEW" badge
-- **Click to edit**: Click narration/overlay blocks on the timeline to open their editor in the Properties panel
-- **Resize & move**: Drag edges to adjust timing, drag center to reposition on timeline
+- **Narration track**: Text captions with configurable position, font, animation (fade/typewriter/slide-up), and colors
+- **Voice recording**: Record narration audio via microphone
+- **Overlay track**: Full-screen image cutaways with blur/dim background effects, titles, subtitles, transitions
+- **Live overlay preview**: Shows on canvas when editing (not playing)
+- **Click to edit**: Click timeline blocks to open editor in Properties panel
 
 ### Persistent Named Groups
 - Select multiple units (shift-click) and create a named group
-- Groups are color-coded and persist across editing sessions
-- Group badge shown on each member unit on the canvas
+- Groups are color-coded and persist across sessions
 - "Select All" to quickly select all group members
-- Add/remove individual units from existing groups via the Properties panel
-- **Right-click context menu**: Right-click a unit to add it to an existing group or remove it
+- **Right-click context menu**: Add/remove units from groups
 
 ### Recording & Playback
 - **Record movement**: Click Record, drag units, click Stop — captures start/end keyframes
-- **Path tool**: Click waypoints on the canvas, double-click to create evenly-spaced keyframes along the path
-- **Multi-select group drag**: Shift-click to select multiple units, drag one to move all
-- **Deterministic playback**: `requestAnimationFrame` loop with linear interpolation between keyframes
-
-### Keyframe Editing
-- **Clickable keyframes**: Click keyframe diamonds on the timeline to select and edit in the Properties panel
-- **Draggable keyframes**: Drag keyframe diamonds left/right to adjust timing
-- **Right-click to delete**: Right-click a keyframe on the timeline to remove it
-- **Property editing**: Edit time, position, rotation, and scale for individual keyframes
+- **Path tool**: Separate workflow — creates keyframes without needing Record mode
+- **Multi-select group drag**: Shift-click to select multiple, drag one to move all
+- **Deterministic playback**: `requestAnimationFrame` loop with linear interpolation
 
 ### Timeline Panel
-- **Resizable**: The timeline panel height is adjustable via a drag handle between the canvas and timeline
-- **Zoomable**: +/- buttons to scale the timeline width (25% to 400%)
-- **Sticky controls**: Play/pause/seek controls stay pinned at the top when scrolling tracks
-- **Narration, overlay, and sound tracks**: Dedicated rows with + buttons to add new events
-- **Unit tracks**: Each unit shows keyframe markers and inline color-coded effect blocks
-- **Standalone effects section**: Map effects grouped by type with collapsible rows
-- **Delete track**: Trash icon on each unit row with confirmation dialog
-- **Drag & resize**: All blocks (narrations, overlays, effects, sounds) can be moved and resized
+- **Resizable**: Drag handle between canvas and timeline
+- **Zoomable**: +/- buttons (25% to 400%)
+- **Seeking pauses playback**: Clicking the ruler pauses and moves all units/effects to that time
+- **Units update when seeking**: Units move to correct interpolated positions when scrubbing the timeline (even while paused)
+- **Dynamic tracks**: Narration, Overlay, and Sound tracks hidden when empty
+- **+ Track button**: Dropdown menu to add Narration, Overlay, or Sound tracks on demand
+- **Inline effect dots**: Effects shown as colored dots on the unit's main timeline row (clickable to select)
+- **Sticky controls**: Play/pause/seek controls pinned at top
+- **Delete track**: Trash icon with confirmation dialog
+- **Drag & resize**: All blocks can be moved and resized
 
-### Properties Panel
-- Edit position, rotation, scale, visibility, lock for selected units
-- Add/remove keyframes at playhead time
-- **Keyframe editor**: Select and edit individual keyframe properties
-- Manage effects per unit (add via dropdown, view list, remove individually)
-- Create and manage groups with member list
-- Narration editor: text, position, font, animation, colors, timing, voice recording
-- Overlay editor: image upload, title/subtitle, background effect, transition, timing
-- **Collapsible**: Toggle button always visible on the edge of the canvas
+### Properties Panel (Reordered for UX)
+- **Top section**: Type badge, label, effects, keyframes, groups (frequently edited)
+- **Bottom section**: Position, rotation, scale, visibility, lock (less frequently edited)
+- **Effect highlighting**: Clicking an effect dot on the timeline highlights it in the properties panel
+- Narration/Overlay editors accessible by clicking timeline blocks
+- **Collapsible**: Toggle button on canvas edge
+
+### Keyboard & Mouse Controls
+
+| Action | Control |
+|---|---|
+| Pan canvas | Middle mouse button drag |
+| Zoom | Scroll wheel |
+| Select unit | Left click |
+| Multi-select | Shift + left click |
+| Deselect all | Click empty canvas OR press Escape |
+| Drag unit | Left click + drag (Select tool) |
+| Move group | Drag any selected unit |
+| Right-click unit | Context menu (groups, draw path) |
+| Draw path: add point | Left click (Path tool active) |
+| Draw path: save | Right-click |
+| Draw path: cancel | Escape |
+| Right-click keyframe | Delete keyframe |
+| Timeline seek | Click ruler (pauses playback) |
+| Timeline zoom | +/- buttons |
+| Resize timeline | Drag handle |
 
 ### Import/Export
 - Export entire project as versioned JSON
 - Import restores everything with migration support
-- **Video export**: WebM export via `canvas.captureStream()` + `MediaRecorder` with narration text rendered on canvas
+- **Video export**: WebM via `canvas.captureStream()` + `MediaRecorder`
 
 ---
 
@@ -106,39 +123,39 @@ A 100% browser-based tactical battle map editor for creating animated military-s
 ```
 src/
 ├── domain/
-│   ├── models.ts              # TypeScript interfaces (MapObject, Scene, Keyframe, UnitEffect, NarrationEvent, OverlayEvent, SoundEvent, UnitGroup, etc.)
-│   ├── constants.ts           # Shared constants (EFFECT_COLORS, UNIT_SYMBOLS, GROUP_COLORS, etc.)
-│   ├── formatters.ts          # Time formatting utilities (formatTime, formatTimeSec)
+│   ├── models.ts              # TypeScript interfaces
+│   ├── constants.ts           # Shared constants
+│   ├── formatters.ts          # Time formatting utilities
 │   └── services/
 │       ├── timeline.ts        # Deterministic interpolation engine
 │       ├── recording.ts       # Recording session management
-│       ├── effects.ts         # Effect presets, factory, getShakeOffset, seededRandom
+│       ├── effects.ts         # Effect presets, factory, utilities
 │       ├── serialization.ts   # Project JSON import/export
-│       └── videoExport.ts     # WebM video export with narration rendering
+│       └── videoExport.ts     # WebM video export
 │
 ├── store/
-│   └── editorStore.ts         # Zustand store — all editor state and actions
+│   └── editorStore.ts         # Zustand store — all state and actions
 │
 ├── pages/
-│   └── Index.tsx              # Main editor layout (imports NarrationOverlay)
+│   └── Index.tsx              # Main editor layout
 │
 ├── components/editor/
-│   ├── MapCanvas.tsx          # Konva canvas — units, effects, drag-drop, panning, context menu
-│   ├── Toolbar.tsx            # Top toolbar (tools, record, import/export)
-│   ├── AssetLibrary.tsx       # Left panel — unit palette, effect presets, sound upload
-│   ├── PropertiesPanel.tsx    # Right panel — orchestrator for sub-editors
-│   ├── TimelinePanel.tsx      # Bottom panel — playback, tracks, draggable blocks, zoom controls
+│   ├── MapCanvas.tsx          # Konva canvas — units, effects, drag-drop, context menu, path drawing
+│   ├── Toolbar.tsx            # Top toolbar
+│   ├── AssetLibrary.tsx       # Left panel — unit palette, effects, sounds
+│   ├── PropertiesPanel.tsx    # Right panel — effects/keyframes first, transform last
+│   ├── TimelinePanel.tsx      # Bottom panel — dynamic tracks, inline effect dots
 │   ├── UnitIcon.tsx           # NATO-style unit icon renderer
-│   ├── NarrationOverlay.tsx   # HTML overlay for narrations, overlays, and sound playback
-│   ├── effects/               # Extracted Konva effect renderers
-│   │   ├── CrackEffect.tsx
+│   ├── NarrationOverlay.tsx   # HTML overlay for narrations, overlays, sounds
+│   ├── effects/               # Konva effect renderers
+│   │   ├── CrackEffect.tsx    # Shattered glass with refraction
 │   │   ├── BloodEffect.tsx
 │   │   ├── ExplosionEffect.tsx
 │   │   ├── SmokeEffect.tsx
 │   │   ├── FireEffect.tsx
 │   │   ├── GunshotEffect.tsx
 │   │   └── index.ts
-│   └── properties/            # Extracted property panel sub-editors
+│   └── properties/
 │       ├── KeyframeEditor.tsx
 │       ├── NarrationEditor.tsx
 │       ├── OverlayEditor.tsx
@@ -146,6 +163,22 @@ src/
 │
 └── components/ui/             # shadcn/ui primitives
 ```
+
+---
+
+## Effect Mechanics
+
+Effects are applied via **drag-and-drop only** from the Effects tab.
+
+| Effect | Color | Visual |
+|---|---|---|
+| 💥 Explosion | #ff6600 | Shockwave rings + debris particles |
+| 〰️ Shake | #ffaa00 | Screen shake offset |
+| ⚡ Crack | #888888 | Shattered glass with refraction highlights |
+| 🩸 Blood | #cc0000 | Organic splatters with drip trails |
+| 💨 Smoke | #9e9e9e | Volumetric multi-frequency turbulence |
+| 🔥 Fire | #ff4400 | Layered flames + rising embers |
+| 🔫 Gunshot | #ffdd00 | Muzzle flash + smoke puff |
 
 ---
 
@@ -160,48 +193,10 @@ npm run dev
 
 ---
 
-## Keyboard & Mouse Controls
-
-| Action | Control |
-|---|---|
-| Pan canvas | Middle mouse button drag |
-| Zoom | Scroll wheel |
-| Select unit | Left click |
-| Multi-select | Shift + left click |
-| Deselect all | Click empty canvas (left click) |
-| Drag unit | Left click + drag (when Select tool active) |
-| Move group | Drag any selected unit (moves all selected) |
-| Right-click unit | Context menu (add to group, remove from group) |
-| Right-click keyframe | Delete keyframe |
-| Timeline zoom | +/- buttons in timeline controls bar |
-| Resize timeline | Drag the handle between canvas and timeline |
-
----
-
-## Effect Mechanics
-
-Effects are applied to units via **drag-and-drop only**:
-1. Open the **Effects** tab in the left sidebar
-2. Drag an effect preset onto a unit on the canvas → adds the effect to that unit
-3. Drag an effect preset onto empty canvas space → creates a standalone map effect object
-
-Each effect type has a **distinct color** on the timeline:
-- 💥 Explosion → Orange (#ff6600)
-- 〰️ Shake → Amber (#ffaa00)
-- ⚡ Crack → Gray (#888888)
-- 🩸 Blood → Dark Red (#cc0000)
-- 💨 Smoke → Silver (#9e9e9e)
-- 🔥 Fire → Red-Orange (#ff4400)
-- 🔫 Gunshot → Yellow (#ffdd00)
-
-Units with effects show **colored indicator dots** on the canvas at all times.
-
----
-
 ## Planned Features
 
 - Formation movement with maintained relative offsets
 - Undo/redo system
 - Multi-scene editing with transitions
 - More effect types (rain, fog, arrows/projectiles)
-- Keyboard shortcuts (Space to play/pause, Delete to remove, etc.)
+- Keyboard shortcuts (Space to play/pause, Delete to remove)
