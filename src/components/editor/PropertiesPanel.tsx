@@ -4,7 +4,6 @@ import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effect
 import { EFFECT_COLORS } from '@/domain/constants';
 import { Trash2 } from 'lucide-react';
 import { formatTime } from '@/domain/formatters';
-import { EFFECT_COLORS } from '@/domain/constants';
 import KeyframeEditor from './properties/KeyframeEditor';
 import NarrationEditor from './properties/NarrationEditor';
 import OverlayEditor from './properties/OverlayEditor';
