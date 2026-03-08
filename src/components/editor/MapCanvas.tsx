@@ -68,6 +68,9 @@ const MapCanvas: React.FC = () => {
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string } | null>(null);
+  // Arrow drawing state
+  const isDrawingArrow = useRef(false);
+  const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
