@@ -4,28 +4,32 @@ import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
 import type { MapObject, UnitType } from '@/domain/models';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
-import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
+import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
 import { CrackEffect, BloodEffect, ExplosionEffect, SmokeEffect, FireEffect, GunshotEffect } from './effects';
 import { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
+import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
 
-// --- Custom icon image cache ---
-const customIconCache = new Map<string, HTMLImageElement>();
+// --- Image cache for custom icons AND built-in unit icons ---
+const imageCache = new Map<string, HTMLImageElement>();
 
-function useCustomIconCache(sources: string[]) {
+function useImageCache(sources: string[]) {
   const [, forceRerender] = useState(0);
   useEffect(() => {
     let cancelled = false;
     sources.forEach((src) => {
-      if (!src || customIconCache.has(src)) return;
+      if (!src || imageCache.has(src)) return;
       const image = new window.Image();
       image.src = src;
-      image.onload = () => { customIconCache.set(src, image); if (!cancelled) forceRerender((v) => v + 1); };
+      image.onload = () => {
+        imageCache.set(src, image);
+        if (!cancelled) forceRerender((v) => v + 1);
+      };
     });
     return () => { cancelled = true; };
   }, [sources]);
-  return customIconCache;
+  return imageCache;
 }
 
 const MapCanvas: React.FC = () => {
@@ -469,7 +473,9 @@ const MapCanvas: React.FC = () => {
 
   const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect'));
   const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
-  const customIconImages = useCustomIconCache(customIconSources);
+  const builtInIconSources = Object.values(UNIT_ICON_URLS);
+  const allIconSources = [...customIconSources, ...builtInIconSources];
+  const iconImages = useImageCache(allIconSources);
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
 
   // Status bar text for path drawing
@@ -583,7 +589,9 @@ const MapCanvas: React.FC = () => {
             const uvis = derived ? derived.visible : unit.visible;
             if (!uvis) return null;
 
-            const customIconImage = unit.customIcon ? customIconImages.get(unit.customIcon) : null;
+            const customIconImage = unit.customIcon ? iconImages.get(unit.customIcon) : null;
+            const builtInIconUrl = UNIT_ICON_URLS[unit.unitType || 'infantry'];
+            const builtInIconImage = builtInIconUrl ? iconImages.get(builtInIconUrl) : null;
             const isStandaloneEffect = unit.type === 'effect';
             const unitEffects = derivedEffects[unit.id] || [];
             const shakeOffset = getShakeOffset(unitEffects, currentTime);
@@ -629,11 +637,9 @@ const MapCanvas: React.FC = () => {
                   <>
                     <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${UNIT_COLOR}44`} stroke={UNIT_COLOR} strokeWidth={2} cornerRadius={4} />
                     {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
-                    {!customIconImage && (
-                      <>
-                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_SYMBOLS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.4} align="center" fill={UNIT_COLOR} />
-                        <Text x={-size / 2} y={size / 2 - 14} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={9} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={UNIT_COLOR} align="center" />
-                      </>
+                    {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
+                    {!customIconImage && !builtInIconImage && (
+                      <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={UNIT_COLOR} />
                     )}
                     <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={UNIT_COLOR} />
                     {group && (
@@ -754,7 +760,7 @@ const MapCanvas: React.FC = () => {
                             onClick={() => handleAddUnitAtCursor(u.type)}
                             className="w-full text-left px-3 py-1 text-[9px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                           >
-                            <span>{UNIT_SYMBOLS[u.type]}</span> {u.label}
+                            <img src={UNIT_ICON_URLS[u.type]} alt={u.label} className="w-4 h-4 object-contain" /> {u.label}
                           </button>
                         ))}
                       </div>
