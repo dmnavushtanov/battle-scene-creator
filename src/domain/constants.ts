@@ -1,4 +1,6 @@
+import { UNIT_ICON_KEYS } from '@/assets/icons';
 import type { ObjectCategory } from './models';
+import { getUnitCategory, getUnitDisplayLabel, getUnitShortLabel, getUnitSymbol } from './unitMetadata';
 
 /** Colors for effect types on timeline and canvas badges */
 export const EFFECT_COLORS: Record<string, string> = {
@@ -23,19 +25,24 @@ export const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
 };
 
 /** NATO-style unit symbols for canvas rendering */
-export const UNIT_SYMBOLS: Record<string, string> = {
-  infantry: '\u2694',
-};
+export const UNIT_SYMBOLS: Record<string, string> = Object.fromEntries(
+  UNIT_ICON_KEYS.map((unitType) => [unitType, getUnitSymbol(unitType)])
+);
 
 /** Short labels for unit types on canvas */
-export const UNIT_LABELS: Record<string, string> = {
-  infantry: 'INF',
-};
+export const UNIT_LABELS: Record<string, string> = Object.fromEntries(
+  UNIT_ICON_KEYS.map((unitType) => [unitType, getUnitShortLabel(unitType)])
+);
 
 /** Category mapping for each unit type */
-export const UNIT_CATEGORY: Record<string, ObjectCategory> = {
-  infantry: 'military',
-};
+export const UNIT_CATEGORY: Record<string, ObjectCategory> = Object.fromEntries(
+  UNIT_ICON_KEYS.map((unitType) => [unitType, getUnitCategory(unitType)])
+);
+
+/** Human-readable labels for unit types */
+export const UNIT_DISPLAY_LABELS: Record<string, string> = Object.fromEntries(
+  UNIT_ICON_KEYS.map((unitType) => [unitType, getUnitDisplayLabel(unitType)])
+);
 
 /** Default unit color (amber) */
 export const UNIT_COLOR = '#d4a843';

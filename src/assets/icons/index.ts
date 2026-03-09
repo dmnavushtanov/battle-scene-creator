@@ -15,4 +15,4 @@ const iconEntries = Object.entries(iconModules).map(([path, url]) => {
 export const UNIT_ICON_URLS: Record<string, string> = Object.fromEntries(iconEntries);
 
 /** Available unit icon keys inferred from files in this directory. */
-export const UNIT_ICON_KEYS = Object.keys(UNIT_ICON_URLS);
+export const UNIT_ICON_KEYS: ReadonlyArray<string> = Object.freeze(Object.keys(UNIT_ICON_URLS));
