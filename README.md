@@ -229,7 +229,11 @@ npm install
 npm run dev
 ```
 
-To add custom icons locally: place PNG files in `src/assets/icons/` and add an import line in `src/assets/icons/index.ts`. Vite bundles them at build time.
+To add built-in assets locally, just drop files into the assets folders and they are auto-discovered at build time:
+- Unit icons: `src/assets/icons/` (supports PNG, SVG, JPG/JPEG, WEBP, including nested folders)
+- Background maps: `src/assets/maps/` (supports PNG, SVG, JPG/JPEG, WEBP)
+
+No manual import edits are required.
 
 Custom effects in the app can be uploaded from the **Effects** tab.
 

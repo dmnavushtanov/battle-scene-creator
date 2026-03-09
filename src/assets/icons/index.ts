@@ -1,8 +1,9 @@
 const iconModules = {
-  ...import.meta.glob('./*.png', { eager: true, import: 'default' }),
-  ...import.meta.glob('./*.svg', { eager: true, import: 'default' }),
-  ...import.meta.glob('./*.jpg', { eager: true, import: 'default' }),
-  ...import.meta.glob('./*.webp', { eager: true, import: 'default' }),
+  ...import.meta.glob('./**/*.png', { eager: true, import: 'default' }),
+  ...import.meta.glob('./**/*.svg', { eager: true, import: 'default' }),
+  ...import.meta.glob('./**/*.jpg', { eager: true, import: 'default' }),
+  ...import.meta.glob('./**/*.jpeg', { eager: true, import: 'default' }),
+  ...import.meta.glob('./**/*.webp', { eager: true, import: 'default' }),
 } satisfies Record<string, string>;
 
 const iconEntries = Object.entries(iconModules).map(([path, url]) => {
