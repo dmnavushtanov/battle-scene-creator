@@ -275,7 +275,7 @@ const AssetLibrary: React.FC = () => {
               Upload Map Image
             </button>
             <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">
-              Folder map: `public/maps/library-map.png`
+              Built-in maps auto-load from `src/assets/maps/`
             </p>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
           </div>
