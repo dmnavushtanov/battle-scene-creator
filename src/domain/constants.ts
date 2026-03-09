@@ -1,4 +1,4 @@
-import type { EffectType, UnitType, ObjectCategory } from './models';
+import type { ObjectCategory } from './models';
 
 /** Colors for effect types on timeline and canvas badges */
 export const EFFECT_COLORS: Record<string, string> = {
@@ -13,122 +13,28 @@ export const EFFECT_COLORS: Record<string, string> = {
 
 /** Emoji symbols for effect types */
 export const EFFECT_VISUAL_SYMBOLS: Record<string, string> = {
-  explosion: '💥',
-  shake: '〰️',
-  crack: '⚡',
-  blood: '🩸',
-  smoke: '💨',
-  fire: '🔥',
-  gunshot: '🔫',
+  explosion: '\u{1F4A5}',
+  shake: '\u{3030}\uFE0F',
+  crack: '\u26A1',
+  blood: '\u{1FA78}',
+  smoke: '\u{1F4A8}',
+  fire: '\u{1F525}',
+  gunshot: '\u{1F52B}',
 };
 
 /** NATO-style unit symbols for canvas rendering */
 export const UNIT_SYMBOLS: Record<string, string> = {
-  infantry: '⚔',
-  cavalry: '🐎',
-  armor: '⬣',
-  artillery: '💣',
-  naval: '⚓',
-  air: '✈',
-  hq: '★',
-  supply: '📦',
-  // Structures
-  house: '🏠',
-  castle: '🏰',
-  tower: '🗼',
-  church: '⛪',
-  tavern: '🍺',
-  windmill: '🌬️',
-  bridge: '🌉',
-  gate: '🚪',
-  // Props
-  barrel: '🛢️',
-  haystack: '🌾',
-  cart: '🛒',
-  chest: '📦',
-  well: '⛲',
-  campfire: '🔥',
-  tent: '⛺',
-  flag: '🏴',
-  // Terrain
-  tree: '🌲',
-  rock: '🪨',
-  mountain: '⛰️',
-  river: '🌊',
+  infantry: '\u2694',
 };
 
 /** Short labels for unit types on canvas */
 export const UNIT_LABELS: Record<string, string> = {
   infantry: 'INF',
-  cavalry: 'CAV',
-  armor: 'ARM',
-  artillery: 'ART',
-  naval: 'NAV',
-  air: 'AIR',
-  hq: 'HQ',
-  supply: 'SUP',
-  house: 'HSE',
-  castle: 'CST',
-  tower: 'TWR',
-  church: 'CHR',
-  tavern: 'TAV',
-  windmill: 'WML',
-  bridge: 'BRG',
-  gate: 'GTE',
-  farm: 'FRM',
-  barrel: 'BRL',
-  haystack: 'HAY',
-  cart: 'CRT',
-  chest: 'CHT',
-  well: 'WEL',
-  campfire: 'CFR',
-  tent: 'TNT',
-  flag: 'FLG',
-  fence: 'FNC',
-  wooden_barricade: 'WBR',
-  stone_barricade: 'SBR',
-  pathway: 'PTH',
-  tree: 'TRE',
-  rock: 'RCK',
-  mountain: 'MTN',
-  river: 'RVR',
 };
 
 /** Category mapping for each unit type */
 export const UNIT_CATEGORY: Record<string, ObjectCategory> = {
   infantry: 'military',
-  cavalry: 'military',
-  armor: 'military',
-  artillery: 'military',
-  naval: 'military',
-  air: 'military',
-  hq: 'military',
-  supply: 'military',
-  house: 'structure',
-  castle: 'structure',
-  tower: 'structure',
-  church: 'structure',
-  tavern: 'structure',
-  windmill: 'structure',
-  bridge: 'structure',
-  gate: 'structure',
-  farm: 'structure',
-  barrel: 'prop',
-  haystack: 'prop',
-  cart: 'prop',
-  chest: 'prop',
-  well: 'prop',
-  campfire: 'prop',
-  tent: 'prop',
-  flag: 'prop',
-  fence: 'prop',
-  wooden_barricade: 'prop',
-  stone_barricade: 'prop',
-  pathway: 'prop',
-  tree: 'terrain',
-  rock: 'terrain',
-  mountain: 'terrain',
-  river: 'terrain',
 };
 
 /** Default unit color (amber) */

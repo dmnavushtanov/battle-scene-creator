@@ -1,13 +1,5 @@
 export type UnitType =
-  | 'infantry' | 'cavalry' | 'armor' | 'artillery' | 'naval' | 'air' | 'hq' | 'supply'
-  // Structures
-  | 'house' | 'castle' | 'tower' | 'church' | 'tavern' | 'windmill' | 'bridge' | 'gate' | 'farm'
-  // Props
-  | 'barrel' | 'haystack' | 'cart' | 'chest' | 'well' | 'campfire' | 'tent' | 'flag'
-  // Fortifications
-  | 'fence' | 'wooden_barricade' | 'stone_barricade' | 'pathway'
-  // Terrain
-  | 'tree' | 'rock' | 'mountain' | 'river';
+  | 'infantry';
 
 export type ObjectCategory = 'military' | 'structure' | 'prop' | 'terrain';
 export type DrawToolType = 'select' | 'arrow' | 'path' | 'animated_arrow' | 'text';
