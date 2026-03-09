@@ -70,6 +70,7 @@ export interface EditorState {
   activeNarrations: NarrationEvent[];
   activeOverlay: OverlayEvent | null;
   customIcons: CustomIcon[];
+  mapLibrary: MapLibraryItem[];
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
   selectedKeyframeIndex: { objectId: string; index: number } | null;
