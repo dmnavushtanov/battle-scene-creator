@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
@@ -7,6 +7,7 @@ import { ImageIcon, Trash2, Sparkles, GripVertical, Volume2, ChevronDown, Chevro
 import { EFFECT_PRESETS } from '@/domain/services/effects';
 import { EFFECT_COLORS, UNIT_CATEGORY } from '@/domain/constants';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { BUILT_IN_MAPS } from '@/assets/maps';
 
 const MAX_ICON_KB = 200;
 const MAX_EFFECT_IMAGE_KB = 1024;
@@ -53,10 +54,27 @@ const AssetLibrary: React.FC = () => {
   const mapLibrary = useEditorStore((s) => s.mapLibrary);
   const addMapToLibrary = useEditorStore((s) => s.addMapToLibrary);
   const removeMapFromLibrary = useEditorStore((s) => s.removeMapFromLibrary);
+  const activeScene = useEditorStore((s) => {
+    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
+    return scene || s.project.scenes[0];
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
   const effectInputRef = useRef<HTMLInputElement>(null);
+  const [hiddenBuiltInMapIds, setHiddenBuiltInMapIds] = useState<string[]>([]);
+
+  const visibleBuiltInMaps = BUILT_IN_MAPS.filter((m) => !hiddenBuiltInMapIds.includes(m.id));
+  const allMaps = [
+    ...visibleBuiltInMaps.map((m) => ({ ...m, isBuiltIn: true })),
+    ...mapLibrary.map((m) => ({ ...m, isBuiltIn: false })),
+  ];
+
+  useEffect(() => {
+    if (!activeScene?.backgroundImage && visibleBuiltInMaps.length > 0) {
+      setBackgroundImage(visibleBuiltInMaps[0].dataUrl);
+    }
+  }, [activeScene?.id, activeScene?.backgroundImage, setBackgroundImage, visibleBuiltInMaps]);
 
   const toggleCategory = (key: string) => {
     setExpandedCategories((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -222,20 +240,31 @@ const AssetLibrary: React.FC = () => {
         <>
           <div className="px-3 py-3 border-b border-border">
             <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Background Map</p>
-            {mapLibrary.length > 0 && (
+            {allMaps.length > 0 && (
               <div className="grid grid-cols-3 gap-1.5 mb-2">
-                {mapLibrary.map((m) => (
+                {allMaps.map((m) => (
                   <div key={m.id} className="relative group">
                     <button
                       onClick={() => setBackgroundImage(m.dataUrl)}
                       className="w-full aspect-video rounded border border-border overflow-hidden hover:border-primary/50 transition-colors"
                       title={`Use "${m.label}" as background`}
                     >
-                      <img src={m.dataUrl} alt={m.label} className="w-full h-full object-cover" />
+                      <img
+                        src={m.dataUrl}
+                        alt={m.label}
+                        className="w-full h-full object-cover"
+                        onError={() => {
+                          if (m.isBuiltIn) {
+                            setHiddenBuiltInMapIds((prev) => (prev.includes(m.id) ? prev : [...prev, m.id]));
+                          }
+                        }}
+                      />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); removeMapFromLibrary(m.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={8} />
-                    </button>
+                    {!m.isBuiltIn && (
+                      <button onClick={(e) => { e.stopPropagation(); removeMapFromLibrary(m.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 size={8} />
+                      </button>
+                    )}
                     <span className="text-[7px] font-mono text-muted-foreground truncate block text-center mt-0.5">{m.label}</span>
                   </div>
                 ))}
@@ -244,6 +273,9 @@ const AssetLibrary: React.FC = () => {
             <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors">
               Upload Map Image
             </button>
+            <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">
+              Folder map: `public/maps/library-map.png`
+            </p>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
           </div>
           <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
