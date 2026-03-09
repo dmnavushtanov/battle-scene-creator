@@ -117,30 +117,6 @@ const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Faction Color */}
-        {(single.type === 'unit' || single.type === 'animated_arrow') && (
-          <div>
-            <label className="text-[9px] font-mono uppercase text-muted-foreground">Faction Color</label>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {FACTION_COLORS.map((fc) => (
-                <button
-                  key={fc.color}
-                  onClick={() => updateObject(single.id, { factionColor: fc.color })}
-                  className={`w-5 h-5 rounded-full border-2 transition-all ${single.factionColor === fc.color ? 'border-foreground scale-110' : 'border-transparent hover:border-muted-foreground/50'}`}
-                  style={{ backgroundColor: fc.color }}
-                  title={fc.label}
-                />
-              ))}
-              <button
-                onClick={() => updateObject(single.id, { factionColor: 'none' })}
-                className={`px-1.5 py-0.5 text-[8px] font-mono rounded border transition-colors ${!single.factionColor || single.factionColor === 'none' ? 'border-foreground text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
-              >
-                None
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Map Text properties */}
         {single.type === 'map_text' && (
           <div className="space-y-2 pt-2 border-t border-border">
@@ -264,6 +240,30 @@ const PropertiesPanel: React.FC = () => {
         {/* Basic Properties (less frequently used) */}
         <div className="pt-2 border-t border-border space-y-3">
           <span className="text-[8px] font-mono uppercase text-muted-foreground/60">Transform</span>
+          {/* Faction Color */}
+          {(single.type === 'unit' || single.type === 'animated_arrow') && (
+            <div>
+              <label className="text-[9px] font-mono uppercase text-muted-foreground">Faction Color</label>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {FACTION_COLORS.map((fc) => (
+                  <button
+                    key={fc.color}
+                    onClick={() => updateObject(single.id, { factionColor: fc.color })}
+                    className={`w-5 h-5 rounded-full border-2 transition-all ${single.factionColor === fc.color ? 'border-foreground scale-110' : 'border-transparent hover:border-muted-foreground/50'}`}
+                    style={{ backgroundColor: fc.color }}
+                    title={fc.label}
+                  />
+                ))}
+                <button
+                  onClick={() => updateObject(single.id, { factionColor: 'none' })}
+                  className={`px-1.5 py-0.5 text-[8px] font-mono rounded border transition-colors ${!single.factionColor || single.factionColor === 'none' ? 'border-foreground text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Position */}
           <div>
             <label className="text-[9px] font-mono uppercase text-muted-foreground">Position</label>
