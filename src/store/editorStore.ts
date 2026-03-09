@@ -38,6 +38,12 @@ export interface CustomIcon {
   dataUrl: string;
 }
 
+export interface MapLibraryItem {
+  id: string;
+  label: string;
+  dataUrl: string;
+}
+
 export interface ClipboardData {
   type: 'unit' | 'effect';
   object?: MapObject;
