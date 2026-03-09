@@ -109,7 +109,7 @@ const MapCanvas: React.FC = () => {
   const addObject = useEditorStore((s) => s.addObject);
   const addEffect = useEditorStore((s) => s.addEffect);
   const addToGroup = useEditorStore((s) => s.addToGroup);
-  const batchAddKeyframes = useEditorStore((s) => s.batchAddKeyframes);
+  const replaceKeyframesFromTime = useEditorStore((s) => s.replaceKeyframesFromTime);
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const copySelected = useEditorStore((s) => s.copySelected);
@@ -270,7 +270,7 @@ const MapCanvas: React.FC = () => {
       scaleY: evaluatedStart.scaleY,
       visible: evaluatedStart.visible,
     }));
-    batchAddKeyframes(unitId, keyframes);
+    replaceKeyframesFromTime(unitId, pathStartTime, keyframes);
 
     const endTime = pathStartTime + durMs;
     if (endTime > activeScene.duration) {
@@ -664,10 +664,11 @@ const MapCanvas: React.FC = () => {
     const unit = objectsById[sids[0]];
     const unitName = unit?.label || unit?.unitType || 'Unit';
     const durLabel = `Path duration: ${recordDurationSeconds}s (change in toolbar)`;
+    const overwriteHint = 'Saving path replaces future movement from current time.';
     if (pathPoints.length === 0) {
-      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel · ${durLabel}`;
+      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel · ${durLabel} · ${overwriteHint}`;
     }
-    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add, Right-click: save, Esc: cancel · ${durLabel}`;
+    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add, Right-click: save, Esc: cancel · ${durLabel} · ${overwriteHint}`;
   };
 
   const getPathStartAnchor = () => {
