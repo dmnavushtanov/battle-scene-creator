@@ -45,6 +45,9 @@ const AssetLibrary: React.FC = () => {
   const removeCustomIcon = useEditorStore((s) => s.removeCustomIcon);
   const addSound = useEditorStore((s) => s.addSound);
   const currentTime = useEditorStore((s) => s.currentTime);
+  const mapLibrary = useEditorStore((s) => s.mapLibrary);
+  const addMapToLibrary = useEditorStore((s) => s.addMapToLibrary);
+  const removeMapFromLibrary = useEditorStore((s) => s.removeMapFromLibrary);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
