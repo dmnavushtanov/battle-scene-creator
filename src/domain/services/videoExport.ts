@@ -1,6 +1,10 @@
 import Konva from 'konva';
 import type { NarrationEvent } from '../models';
 
+interface FrameRequestableMediaStreamTrack extends MediaStreamTrack {
+  requestFrame: () => void;
+}
+
 export interface VideoExportOptions {
   stage: Konva.Stage;
   duration: number; // ms
@@ -144,7 +148,7 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
         // Request frame capture on the stream
         const track = stream.getVideoTracks()[0];
         if (track && 'requestFrame' in track) {
-          (track as any).requestFrame();
+          (track as FrameRequestableMediaStreamTrack).requestFrame();
         }
 
         frame++;
