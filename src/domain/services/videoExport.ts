@@ -5,6 +5,9 @@ export interface VideoExportOptions {
   stage: Konva.Stage;
   duration: number; // ms
   fps?: number;
+  mimeType?: string;
+  videoBitsPerSecond?: number;
+  scale?: number;
   onProgress?: (percent: number) => void;
   computeFrame: (time: number) => void;
   getNarrations?: (time: number) => NarrationEvent[];
@@ -16,17 +19,30 @@ export interface VideoExportOptions {
  * Now waits for React re-renders and draws narration text on canvas.
  */
 export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
-  const { stage, duration, fps = 30, onProgress, computeFrame, getNarrations } = opts;
+  const {
+    stage,
+    duration,
+    fps = 30,
+    mimeType = 'video/webm;codecs=vp9',
+    videoBitsPerSecond = 12_000_000,
+    scale = 1,
+    onProgress,
+    computeFrame,
+    getNarrations,
+  } = opts;
 
   const canvas = document.createElement('canvas');
-  canvas.width = stage.width();
-  canvas.height = stage.height();
+  canvas.width = Math.max(1, Math.round(stage.width() * scale));
+  canvas.height = Math.max(1, Math.round(stage.height() * scale));
 
   const stream = canvas.captureStream(0); // 0 = manual frame capture
-  const mediaRecorder = new MediaRecorder(stream, {
-    mimeType: 'video/webm;codecs=vp9',
-    videoBitsPerSecond: 5_000_000,
-  });
+  const recorderOptions: MediaRecorderOptions = {
+    videoBitsPerSecond,
+  };
+  if (MediaRecorder.isTypeSupported(mimeType)) {
+    recorderOptions.mimeType = mimeType;
+  }
+  const mediaRecorder = new MediaRecorder(stream, recorderOptions);
 
   const chunks: Blob[] = [];
   mediaRecorder.ondataavailable = (e) => {
@@ -36,7 +52,7 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
   return new Promise((resolve, reject) => {
     mediaRecorder.onerror = (e) => reject(e);
     mediaRecorder.onstop = () => {
-      resolve(new Blob(chunks, { type: 'video/webm' }));
+      resolve(new Blob(chunks, { type: mediaRecorder.mimeType || mimeType }));
     };
 
     mediaRecorder.start();
@@ -59,7 +75,7 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
         stage.batchDraw();
 
         // Capture the stage to our canvas
-        const stageCanvas = stage.toCanvas({ pixelRatio: 1 });
+        const stageCanvas = stage.toCanvas({ pixelRatio: scale });
         const ctx = canvas.getContext('2d');
         if (ctx) {
           canvas.width = stageCanvas.width;
