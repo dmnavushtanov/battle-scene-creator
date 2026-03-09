@@ -17,6 +17,18 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <script>
+      (function () {
+        const redirect = window.location.search.match(/\?p=([^&]*)/);
+        if (!redirect) return;
+
+        const path = decodeURIComponent(redirect[1]).replace(/~and~/g, "&");
+        const query = window.location.search.match(/&q=([^&]*)/);
+        const search = query ? "?" + query[1].replace(/~and~/g, "&") : "";
+
+        window.history.replaceState(null, "", path + search + window.location.hash);
+      })();
+    </script>
   </head>
 
   <body>
