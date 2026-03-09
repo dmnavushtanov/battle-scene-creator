@@ -2,12 +2,13 @@ import React from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset } from '@/domain/services/effects';
 import { EFFECT_COLORS, FACTION_COLORS } from '@/domain/constants';
-import { Trash2 } from 'lucide-react';
+import { Info, Trash2 } from 'lucide-react';
 import { formatTime } from '@/domain/formatters';
 import KeyframeEditor from './properties/KeyframeEditor';
 import NarrationEditor from './properties/NarrationEditor';
 import OverlayEditor from './properties/OverlayEditor';
 import GroupSection from './properties/GroupSection';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const PropertiesPanel: React.FC = () => {
   const selectedIds = useEditorStore((s) => s.selectedIds);
@@ -35,6 +36,9 @@ const PropertiesPanel: React.FC = () => {
   const single = selectedObjects.length === 1 ? selectedObjects[0] : null;
   const singleKeyframeCount = single ? (activeScene.keyframesByObjectId[single.id] || []).length : 0;
   const singleEffects = single ? (activeScene.effectsByObjectId[single.id] || []) : [];
+  const visibleUntilSeconds = +(((single?.endTime ?? activeScene.duration) / 1000).toFixed(2));
+  const fadeOutSeconds = +(((single?.fadeOutDuration ?? 0) / 1000).toFixed(2));
+  const fadeOutStartSeconds = +(Math.max(0, visibleUntilSeconds - fadeOutSeconds).toFixed(2));
 
   if (selectedObjects.length === 0) {
     return (
@@ -106,14 +110,47 @@ const PropertiesPanel: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-[9px] font-mono uppercase text-muted-foreground">Fade In (s)</label>
+                <label className="text-[9px] font-mono uppercase text-muted-foreground flex items-center gap-1">
+                  Fade In (s)
+                  <TooltipProvider delayDuration={250}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground/70 hover:text-foreground transition-colors" aria-label="Fade in help">
+                          <Info size={10} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[220px]">
+                        <p className="text-xs">Fade In: seconds to ramp from 0% to 100% opacity after Visible From.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </label>
                 <input type="number" step={0.1} min={0} value={+((single.fadeInDuration ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { fadeInDuration: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+                <p className="text-[8px] font-mono text-muted-foreground/80 mt-1">Fade In: seconds to ramp from 0% to 100% opacity after Visible From.</p>
               </div>
               <div className="flex-1">
-                <label className="text-[9px] font-mono uppercase text-muted-foreground">Fade Out (s)</label>
+                <label className="text-[9px] font-mono uppercase text-muted-foreground flex items-center gap-1">
+                  Fade Out (s)
+                  <TooltipProvider delayDuration={250}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground/70 hover:text-foreground transition-colors" aria-label="Fade out help">
+                          <Info size={10} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[220px]">
+                        <p className="text-xs">Fade Out: seconds to ramp from 100% to 0% opacity before Visible Until.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </label>
                 <input type="number" step={0.1} min={0} value={+((single.fadeOutDuration ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { fadeOutDuration: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+                <p className="text-[8px] font-mono text-muted-foreground/80 mt-1">Fade Out: seconds to ramp from 100% to 0% opacity before Visible Until.</p>
               </div>
             </div>
+            <p className="text-[8px] font-mono text-muted-foreground/70">
+              Example: Visible Until {visibleUntilSeconds}s + Fade Out {fadeOutSeconds}s means fade starts at {fadeOutStartSeconds}s.
+            </p>
           </div>
         )}
 

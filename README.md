@@ -73,6 +73,7 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 - **Text tool**: Click anywhere on the canvas to place text labels — city names, dates, battle names, casualty counts
 - Configurable font size, text color, and optional background color
 - Draggable and keyframeable like any other object
+- **Time Range + Fade controls** (for units and text): Set Visible From/Until, then use Fade In/Out in seconds to smooth opacity transitions (e.g., Visible Until 20s + Fade Out 3s starts fading at 17s)
 - Perfect for annotating battle positions and key locations
 
 ### Faction Colors
