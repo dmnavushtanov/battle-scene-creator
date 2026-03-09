@@ -111,6 +111,7 @@ export interface EditorState {
   // Keyframes
   addKeyframeAtTime: (objectId: string, time: number) => void;
   batchAddKeyframes: (objectId: string, keyframes: Keyframe[]) => void;
+  replaceKeyframesFromTime: (objectId: string, fromTime: number, newKeyframes: Keyframe[]) => void;
   clearKeyframes: (objectId: string) => void;
   clearAllKeyframes: () => void;
   removeKeyframe: (objectId: string, index: number) => void;
@@ -327,6 +328,18 @@ export const useEditorStore = create<EditorState>((set, get) => {
         return {
           ...s,
           keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: existing },
+        };
+      });
+    },
+
+    replaceKeyframesFromTime: (objectId, fromTime, newKeyframes) => {
+      get()._updateActiveScene((s) => {
+        const existing = s.keyframesByObjectId[objectId] || [];
+        const preserved = existing.filter((kf) => kf.time < fromTime);
+        const replaced = [...preserved, ...newKeyframes].sort((a, b) => a.time - b.time);
+        return {
+          ...s,
+          keyframesByObjectId: { ...s.keyframesByObjectId, [objectId]: replaced },
         };
       });
     },
