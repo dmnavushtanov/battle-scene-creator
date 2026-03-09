@@ -175,6 +175,25 @@ const AssetLibrary: React.FC = () => {
         <>
           <div className="px-3 py-3 border-b border-border">
             <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Background Map</p>
+            {mapLibrary.length > 0 && (
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
+                {mapLibrary.map((m) => (
+                  <div key={m.id} className="relative group">
+                    <button
+                      onClick={() => setBackgroundImage(m.dataUrl)}
+                      className="w-full aspect-video rounded border border-border overflow-hidden hover:border-primary/50 transition-colors"
+                      title={`Use "${m.label}" as background`}
+                    >
+                      <img src={m.dataUrl} alt={m.label} className="w-full h-full object-cover" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); removeMapFromLibrary(m.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Trash2 size={8} />
+                    </button>
+                    <span className="text-[7px] font-mono text-muted-foreground truncate block text-center mt-0.5">{m.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors">
               Upload Map Image
             </button>

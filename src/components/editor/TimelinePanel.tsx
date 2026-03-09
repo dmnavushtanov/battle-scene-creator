@@ -547,11 +547,21 @@ const TimelinePanel: React.FC = () => {
           const isSelected = selectedIds.includes(unit.id);
           const group = groupList.find((g) => g.memberIds.includes(unit.id));
 
+          // Unit time range
+          const unitStart = unit.startTime ?? 0;
+          const unitEnd = unit.endTime ?? totalDuration;
+          const fadeIn = unit.fadeInDuration ?? 0;
+          const fadeOut = unit.fadeOutDuration ?? 0;
+          const blockLeft = unitStart * pxPerMs;
+          const blockWidth = Math.max((unitEnd - unitStart) * pxPerMs, 24);
+          const fadeInWidth = fadeIn * pxPerMs;
+          const fadeOutWidth = fadeOut * pxPerMs;
+
           return (
             <div key={unit.id} className="mb-0.5">
               {/* Main unit track */}
               <div
-                className={`relative h-6 rounded-sm border cursor-pointer group ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/30 hover:bg-muted/50'}`}
+                className={`relative h-6 rounded-sm border cursor-pointer group ${isSelected ? 'border-primary/50 bg-muted/10' : 'border-border bg-muted/10 hover:bg-muted/20'}`}
                 style={{
                   width: timelineWidth,
                   borderLeftWidth: group ? 3 : undefined,
@@ -566,11 +576,39 @@ const TimelinePanel: React.FC = () => {
                   }
                 }}
               >
-                <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1">
+                {/* Unit label */}
+                <span className="absolute left-1 top-0.5 text-[9px] font-mono text-muted-foreground uppercase pointer-events-none flex items-center gap-1 z-[5]">
                   {group && <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: group.color }} />}
                   {unit.label || unit.unitType || 'Unit'}{unitKfs.length > 0 ? ` · ${unitKfs.length}kf` : ''}
                   {unitEffects.length > 0 ? ` · ${unitEffects.length}fx` : ''}
                 </span>
+
+                {/* Time range block — the colored bar showing when unit is active */}
+                <div
+                  className={`absolute top-0.5 h-[18px] rounded-sm cursor-grab active:cursor-grabbing ${isSelected ? 'bg-primary/30 border border-primary/60' : 'bg-primary/15 border border-primary/30'}`}
+                  style={{ left: blockLeft, width: blockWidth }}
+                  onMouseDown={makeBlockDragHandler('move', (st, dur) => {
+                    useEditorStore.getState().updateObject(unit.id, { startTime: st, endTime: st + dur });
+                  }, unitStart, unitEnd - unitStart)}
+                >
+                  {/* Fade-in gradient hint */}
+                  {fadeIn > 0 && (
+                    <div className="absolute left-0 top-0 h-full rounded-l-sm pointer-events-none" style={{ width: Math.min(fadeInWidth, blockWidth), background: 'linear-gradient(to right, transparent, hsl(var(--primary) / 0.3))' }} />
+                  )}
+                  {/* Fade-out gradient hint */}
+                  {fadeOut > 0 && (
+                    <div className="absolute right-0 top-0 h-full rounded-r-sm pointer-events-none" style={{ width: Math.min(fadeOutWidth, blockWidth), background: 'linear-gradient(to left, transparent, hsl(var(--primary) / 0.3))' }} />
+                  )}
+                  {/* Resize handles */}
+                  <div className="absolute left-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-primary/30 rounded-l-sm"
+                    onMouseDown={(e) => { e.stopPropagation(); makeBlockDragHandler('resize-left', (st, dur) => {
+                      useEditorStore.getState().updateObject(unit.id, { startTime: st, endTime: st + dur });
+                    }, unitStart, unitEnd - unitStart)(e); }} />
+                  <div className="absolute right-0 top-0 w-2 h-full cursor-ew-resize opacity-0 group-hover:opacity-100 bg-primary/30 rounded-r-sm"
+                    onMouseDown={(e) => { e.stopPropagation(); makeBlockDragHandler('resize-right', (st, dur) => {
+                      useEditorStore.getState().updateObject(unit.id, { startTime: st, endTime: st + dur });
+                    }, unitStart, unitEnd - unitStart)(e); }} />
+                </div>
 
                 {/* Delete track button */}
                 <button
@@ -584,7 +622,7 @@ const TimelinePanel: React.FC = () => {
                   <Trash2 size={10} />
                 </button>
 
-                {/* Keyframe markers */}
+                {/* Keyframe markers — render inside the time range block area */}
                 {unitKfs.map((kf, idx) => {
                   const kfKey = `${unit.id}:${idx}`;
                   const isKfSelected = selectedKeyframeIndex?.objectId === unit.id && selectedKeyframeIndex?.index === idx;
@@ -593,7 +631,7 @@ const TimelinePanel: React.FC = () => {
                   return (
                     <div
                       key={`kf-${idx}`}
-                      className={`absolute top-1 w-3 h-3 rounded-full border cursor-pointer hover:scale-125 transition-transform ${
+                      className={`absolute top-1 w-3 h-3 rounded-full border cursor-pointer hover:scale-125 transition-transform z-[6] ${
                         highlighted
                           ? 'bg-primary border-primary-foreground scale-125'
                           : 'bg-keyframe border-primary-foreground'
@@ -603,7 +641,6 @@ const TimelinePanel: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (e.shiftKey) {
-                          // Toggle in multi-select set
                           setSelectedKfSet((prev) => {
                             const next = new Set(prev);
                             if (next.has(kfKey)) {
