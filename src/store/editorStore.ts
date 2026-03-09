@@ -38,6 +38,12 @@ export interface CustomIcon {
   dataUrl: string;
 }
 
+export interface MapLibraryItem {
+  id: string;
+  label: string;
+  dataUrl: string;
+}
+
 export interface ClipboardData {
   type: 'unit' | 'effect';
   object?: MapObject;
@@ -64,6 +70,7 @@ export interface EditorState {
   activeNarrations: NarrationEvent[];
   activeOverlay: OverlayEvent | null;
   customIcons: CustomIcon[];
+  mapLibrary: MapLibraryItem[];
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
   selectedKeyframeIndex: { objectId: string; index: number } | null;
@@ -158,6 +165,10 @@ export interface EditorState {
   addCustomIcon: (icon: CustomIcon) => void;
   removeCustomIcon: (id: string) => void;
 
+  // Map library
+  addMapToLibrary: (item: MapLibraryItem) => void;
+  removeMapFromLibrary: (id: string) => void;
+
   // Clipboard
   copySelected: () => void;
   pasteClipboard: () => void;
@@ -188,6 +199,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeNarrations: [],
     activeOverlay: null,
     customIcons: [],
+    mapLibrary: [],
     selectedNarrationId: null,
     selectedOverlayId: null,
     selectedKeyframeIndex: null,
@@ -676,6 +688,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
     removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
+
+    addMapToLibrary: (item) => set((s) => ({ mapLibrary: [...s.mapLibrary, item] })),
+    removeMapFromLibrary: (id) => set((s) => ({ mapLibrary: s.mapLibrary.filter((i) => i.id !== id) })),
 
     // Clipboard
     copySelected: () => {

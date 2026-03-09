@@ -721,6 +721,30 @@ const MapCanvas: React.FC = () => {
             const uvis = derived ? derived.visible : unit.visible;
             if (!uvis) return null;
 
+            // Time range visibility check
+            const sceneDuration = activeScene.duration;
+            const unitStart = unit.startTime ?? 0;
+            const unitEnd = unit.endTime ?? sceneDuration;
+            const isInTimeRange = currentTime >= unitStart && currentTime <= unitEnd;
+            // During playback, hide units outside their time range
+            if (isPlaying && !isInTimeRange) return null;
+            // In edit mode, dim units outside their time range
+            const isOutsideRange = !isInTimeRange;
+
+            // Fade opacity calculation
+            let fadeOpacity = 1;
+            if (isInTimeRange) {
+              const fadeIn = unit.fadeInDuration ?? 0;
+              const fadeOut = unit.fadeOutDuration ?? 0;
+              if (fadeIn > 0 && currentTime < unitStart + fadeIn) {
+                fadeOpacity = Math.max(0, (currentTime - unitStart) / fadeIn);
+              }
+              if (fadeOut > 0 && currentTime > unitEnd - fadeOut) {
+                fadeOpacity = Math.min(fadeOpacity, Math.max(0, (unitEnd - currentTime) / fadeOut));
+              }
+            }
+            const groupOpacity = isOutsideRange ? 0.25 : fadeOpacity;
+
             const customIconImage = unit.customIcon ? iconImages.get(unit.customIcon) : null;
             const builtInIconUrl = UNIT_ICON_URLS[unit.unitType || 'infantry'];
             const builtInIconImage = builtInIconUrl ? iconImages.get(builtInIconUrl) : null;
@@ -729,6 +753,9 @@ const MapCanvas: React.FC = () => {
             const shakeOffset = getShakeOffset(unitEffects, currentTime);
             const group = getGroupForObject(unit.id);
             const staticEffects = activeScene.effectsByObjectId[unit.id] || [];
+
+            // Determine if we should show the faction box
+            const hasFactionColor = unit.factionColor && unit.factionColor !== 'none';
 
             return (
               <Group
@@ -739,6 +766,7 @@ const MapCanvas: React.FC = () => {
                 rotation={urot}
                 scaleX={usx}
                 scaleY={usy}
+                opacity={groupOpacity}
                 draggable={!isPlaying && (activeTool === 'select' || isRecording) && !unit.locked}
                 onClick={(e) => {
                   if (isPlaying) return;
@@ -766,16 +794,19 @@ const MapCanvas: React.FC = () => {
 
                 {/* Unit body */}
                 {!isStandaloneEffect && unit.type === 'unit' && (() => {
-                  const unitColor = unit.factionColor || UNIT_COLOR;
+                  const unitColor = hasFactionColor ? unit.factionColor! : UNIT_COLOR;
                   return (
                     <>
-                      <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${unitColor}44`} stroke={unitColor} strokeWidth={2} cornerRadius={4} />
-                      {customIconImage && <KImage image={customIconImage} x={-size / 2 + 4} y={-size / 2 + 4} width={size - 8} height={size - 8} />}
-                      {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + 2} y={-size / 2 + 2} width={size - 4} height={size - 4} />}
+                      {/* Only show background rect if faction color is set */}
+                      {hasFactionColor && (
+                        <Rect x={-size / 2} y={-size / 2} width={size} height={size} fill={`${unitColor}44`} stroke={unitColor} strokeWidth={2} cornerRadius={4} />
+                      )}
+                      {customIconImage && <KImage image={customIconImage} x={-size / 2 + (hasFactionColor ? 4 : 0)} y={-size / 2 + (hasFactionColor ? 4 : 0)} width={size - (hasFactionColor ? 8 : 0)} height={size - (hasFactionColor ? 8 : 0)} />}
+                      {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + (hasFactionColor ? 2 : 0)} y={-size / 2 + (hasFactionColor ? 2 : 0)} width={size - (hasFactionColor ? 4 : 0)} height={size - (hasFactionColor ? 4 : 0)} />}
                       {!customIconImage && !builtInIconImage && (
                         <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
                       )}
-                      <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />
+                      {hasFactionColor && <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />}
                       {group && (
                         <>
                           <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />

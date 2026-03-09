@@ -90,6 +90,33 @@ const PropertiesPanel: React.FC = () => {
           <input type="text" value={single.label || ''} onChange={(e) => updateObject(single.id, { label: e.target.value })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" placeholder="Unit label..." />
         </div>
 
+        {/* Time Range & Fade */}
+        {(single.type === 'unit' || single.type === 'map_text') && (
+          <div className="space-y-2 pt-2 border-t border-border">
+            <span className="text-[8px] font-mono uppercase text-muted-foreground/60">Time Range</span>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Visible From (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.startTime ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { startTime: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Visible Until (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.endTime ?? activeScene.duration) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { endTime: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Fade In (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.fadeInDuration ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { fadeInDuration: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] font-mono uppercase text-muted-foreground">Fade Out (s)</label>
+                <input type="number" step={0.1} min={0} value={+((single.fadeOutDuration ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { fadeOutDuration: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Faction Color */}
         {(single.type === 'unit' || single.type === 'animated_arrow') && (
           <div>
@@ -105,8 +132,8 @@ const PropertiesPanel: React.FC = () => {
                 />
               ))}
               <button
-                onClick={() => updateObject(single.id, { factionColor: undefined })}
-                className={`px-1.5 py-0.5 text-[8px] font-mono rounded border transition-colors ${!single.factionColor ? 'border-foreground text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                onClick={() => updateObject(single.id, { factionColor: 'none' })}
+                className={`px-1.5 py-0.5 text-[8px] font-mono rounded border transition-colors ${!single.factionColor || single.factionColor === 'none' ? 'border-foreground text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}
               >
                 None
               </button>
