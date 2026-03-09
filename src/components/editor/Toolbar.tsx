@@ -73,7 +73,9 @@ const Toolbar: React.FC = () => {
   const recordDurationSeconds = useEditorStore((s) => s.recordDurationSeconds);
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
+  const seekTo = useEditorStore((s) => s.seekTo);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setIsVideoExporting = useEditorStore((s) => s.setIsVideoExporting);
   const recordingSession = useEditorStore((s) => s.recordingSession);
   const activeScene = useEditorStore((s) => {
@@ -141,7 +143,9 @@ const Toolbar: React.FC = () => {
 
     const stage = stageRef.current as Konva.Stage;
     const scene = useEditorStore.getState().getActiveScene();
+    const initialTime = useEditorStore.getState().currentTime;
 
+    setIsPlaying(false);
     setIsExporting(true);
     setIsVideoExporting(true);
     setExportProgress(0);
@@ -161,7 +165,8 @@ const Toolbar: React.FC = () => {
           );
         },
         computeFrame: (time: number) => {
-          computeDerivedTransforms(time);
+          const frameTime = Math.min(time, scene.duration);
+          seekTo(frameTime);
           const state = useEditorStore.getState();
           const transforms = state.derivedTransforms;
           const sc = state.getActiveScene();
@@ -193,8 +198,8 @@ const Toolbar: React.FC = () => {
     } finally {
       setIsExporting(false);
       setIsVideoExporting(false);
-      const time = useEditorStore.getState().currentTime;
-      computeDerivedTransforms(time);
+      seekTo(initialTime);
+      computeDerivedTransforms(initialTime);
     }
   };
 

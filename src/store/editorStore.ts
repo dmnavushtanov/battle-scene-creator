@@ -510,10 +510,21 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const scene = get().getActiveScene();
       const groupCount = Object.keys(scene.groups).length;
       const color = GROUP_COLORS[groupCount % GROUP_COLORS.length];
-      const group: UnitGroup = { id: uuid(), name, color, memberIds };
+      const uniqueMembers = Array.from(new Set(memberIds));
+      const group: UnitGroup = { id: uuid(), name, color, memberIds: uniqueMembers };
       get()._updateActiveScene((s) => ({
         ...s,
-        groups: { ...s.groups, [group.id]: group },
+        groups: (() => {
+          const updatedGroups: Record<string, UnitGroup> = {};
+          for (const [gid, existing] of Object.entries(s.groups)) {
+            const filteredMembers = existing.memberIds.filter((m) => !uniqueMembers.includes(m));
+            if (filteredMembers.length > 0) {
+              updatedGroups[gid] = { ...existing, memberIds: filteredMembers };
+            }
+          }
+          updatedGroups[group.id] = group;
+          return updatedGroups;
+        })(),
       }));
     },
 
@@ -538,10 +549,23 @@ export const useEditorStore = create<EditorState>((set, get) => {
       get()._updateActiveScene((s) => {
         const group = s.groups[groupId];
         if (!group) return s;
-        const newMembers = [...new Set([...group.memberIds, ...objectIds])];
+        const incoming = Array.from(new Set(objectIds));
+        const updatedGroups: Record<string, UnitGroup> = {};
+
+        for (const [gid, existing] of Object.entries(s.groups)) {
+          if (gid === groupId) continue;
+          const filteredMembers = existing.memberIds.filter((m) => !incoming.includes(m));
+          if (filteredMembers.length > 0) {
+            updatedGroups[gid] = { ...existing, memberIds: filteredMembers };
+          }
+        }
+
+        const newMembers = Array.from(new Set([...group.memberIds, ...incoming]));
+        updatedGroups[groupId] = { ...group, memberIds: newMembers };
+
         return {
           ...s,
-          groups: { ...s.groups, [groupId]: { ...group, memberIds: newMembers } },
+          groups: updatedGroups,
         };
       });
     },
@@ -662,9 +686,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
     onGroupDragMove: (leadId, dx, dy) => {
       const { selectedIds, isRecording, recordingSession } = get();
       if (!selectedIds.includes(leadId) || selectedIds.length <= 1) return;
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
       const scene = get().getActiveScene();
       const updates: Record<string, MapObject> = {};
-      for (const sid of selectedIds) {
+      for (const sid of uniqueSelectedIds) {
         if (sid === leadId) continue;
         const obj = scene.objectsById[sid];
         if (!obj || obj.locked) continue;

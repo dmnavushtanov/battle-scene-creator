@@ -81,6 +81,7 @@ const MapCanvas: React.FC = () => {
   const [dims, setDims] = useState({ width: 800, height: 600 });
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const lastDragPos = useRef<{ x: number; y: number } | null>(null);
+  const activeDragLeadId = useRef<string | null>(null);
   const isPanning = useRef(false);
   const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string | null } | null>(null);
@@ -502,11 +503,15 @@ const MapCanvas: React.FC = () => {
   };
 
   const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    activeDragLeadId.current = id;
     lastDragPos.current = { x: e.target.x(), y: e.target.y() };
     onObjectDragStart(id);
   };
 
   const handleDragMove = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
+      return;
+    }
     const x = e.target.x(), y = e.target.y();
     const prev = lastDragPos.current;
     onObjectDragMove(id, x, y);
@@ -517,8 +522,12 @@ const MapCanvas: React.FC = () => {
   };
 
   const handleDragEnd = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
+      return;
+    }
     onObjectDragEnd(id, e.target.x(), e.target.y());
     lastDragPos.current = null;
+    activeDragLeadId.current = null;
   };
 
   const getObjectTransform = (id: string) => {
