@@ -9,6 +9,8 @@ import { EFFECT_COLORS, UNIT_CATEGORY } from '@/domain/constants';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 
 const MAX_ICON_KB = 200;
+const MAX_EFFECT_IMAGE_KB = 1024;
+const MAX_EFFECT_VIDEO_KB = 8192;
 const ICON_RENDER_SIZE = 50;
 
 function resizeImageToSquare(dataUrl: string, size: number): Promise<string> {
@@ -43,6 +45,9 @@ const AssetLibrary: React.FC = () => {
   const customIcons = useEditorStore((s) => s.customIcons);
   const addCustomIcon = useEditorStore((s) => s.addCustomIcon);
   const removeCustomIcon = useEditorStore((s) => s.removeCustomIcon);
+  const customEffects = useEditorStore((s) => s.customEffects);
+  const addCustomEffect = useEditorStore((s) => s.addCustomEffect);
+  const removeCustomEffect = useEditorStore((s) => s.removeCustomEffect);
   const addSound = useEditorStore((s) => s.addSound);
   const currentTime = useEditorStore((s) => s.currentTime);
   const mapLibrary = useEditorStore((s) => s.mapLibrary);
@@ -51,6 +56,7 @@ const AssetLibrary: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
+  const effectInputRef = useRef<HTMLInputElement>(null);
 
   const toggleCategory = (key: string) => {
     setExpandedCategories((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -136,6 +142,47 @@ const AssetLibrary: React.FC = () => {
 
   const handleEffectDragStart = (e: React.DragEvent, presetIndex: number) => {
     e.dataTransfer.setData('application/effect-preset', String(presetIndex));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleEffectUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+
+    if (!isImage && !isVideo) {
+      alert('Custom effect must be an image or video file.');
+      return;
+    }
+
+    const maxKb = isVideo ? MAX_EFFECT_VIDEO_KB : MAX_EFFECT_IMAGE_KB;
+    if (file.size > maxKb * 1024) {
+      const kindLabel = isVideo ? 'video' : 'image';
+      alert(`Custom effect ${kindLabel} must be under ${maxKb}KB. Your file is ${Math.round(file.size / 1024)}KB.`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const label = file.name.replace(/\.[^.]+$/, '').slice(0, 20);
+      addCustomEffect({
+        id: uuid(),
+        label,
+        dataUrl,
+        mimeType: file.type || (isVideo ? 'video/webm' : 'image/png'),
+        mediaType: isVideo ? 'video' : 'image',
+      });
+    };
+    reader.readAsDataURL(file);
+
+    if (effectInputRef.current) effectInputRef.current.value = '';
+  };
+
+  const handleCustomEffectDragStart = (e: React.DragEvent, effectId: string) => {
+    e.dataTransfer.setData('application/effect-preset', `custom:${effectId}`);
     e.dataTransfer.effectAllowed = 'copy';
   };
 
@@ -299,6 +346,56 @@ const AssetLibrary: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+          <div className="mt-4 pt-3 border-t border-border">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+              Custom Effect Images
+            </p>
+            <p className="text-[8px] font-mono text-muted-foreground/60 mb-2">
+              Upload transparent image effects and drag them to the map
+            </p>
+
+            {customEffects.length > 0 && (
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                {customEffects.map((effect) => (
+                  <div key={effect.id} className="relative group">
+                    <div
+                      draggable
+                      onDragStart={(e) => handleCustomEffectDragStart(e, effect.id)}
+                      className="w-full flex flex-col items-center gap-1 p-1.5 rounded border border-border bg-muted hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-grab active:cursor-grabbing"
+                    >
+                      {effect.mediaType === 'video' ? (
+                        <div className="w-8 h-8 rounded border border-border/60 flex items-center justify-center text-[7px] font-mono text-muted-foreground">VID</div>
+                      ) : (
+                        <img src={effect.dataUrl} alt={effect.label} className="w-8 h-8 object-contain" />
+                      )}
+                      <span className="text-[8px] font-mono uppercase text-muted-foreground truncate w-full text-center">{effect.label}</span>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeCustomEffect(effect.id); }}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 size={8} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => effectInputRef.current?.click()}
+              className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-dashed border-primary/30 hover:border-primary/60 rounded text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
+            >
+              <Sparkles size={14} /> Upload Effect Media
+            </button>
+            <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">Images: PNG/JPG/WEBP/SVG (max {MAX_EFFECT_IMAGE_KB}KB) · Videos: WEBM/MP4/OGG (max {MAX_EFFECT_VIDEO_KB}KB)</p>
+            <input
+              ref={effectInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml,video/webm,video/mp4,video/ogg"
+              onChange={handleEffectUpload}
+              className="hidden"
+            />
           </div>
         </div>
       )}

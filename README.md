@@ -30,9 +30,11 @@ Create cinematic animated battle maps right in your browser — no installs, no 
 - Place units via drag-and-drop or right-click context menu
 - Grid overlay, scroll-wheel zoom, middle-mouse pan
 - Custom icon upload (auto-resized, max 200KB)
+- Custom effect media upload (images + short videos), draggable from Effects tab
 - Click empty canvas to deselect; Escape key also deselects
 - **Rectangle marquee selection**: Left-click drag on empty canvas to draw a selection box — all units inside are selected on release
 - Path tool: click waypoints, right-click to save, Escape to cancel
+- Path recording starts at the moment the unit becomes visible (`max(currentTime, unit start time)`) so hidden units do not move invisibly before appearing
 - Path tool shows duration info: "Path duration: Xs (change in toolbar)"
 
 ### Asset Library (Collapsible Categories)
@@ -59,6 +61,7 @@ All icons are 18th-century Bulgarian military style, transparent PNG, isometric 
 | Smoke | Volumetric turbulence clouds |
 | Fire | Layered flames + rising embers |
 | Gunshot | Muzzle flash + smoke puff |
+| Custom Media Effect | Upload your own image/video effect and place/drag it on the map |
 
 ### Animated Arrows
 - **Animated Arrow tool**: Draw arrows that progressively grow during playback — the #1 visual element in battle map videos (Kings and Generals style)
@@ -202,6 +205,19 @@ npm run dev
 ```
 
 To add custom icons locally: place PNG files in `src/assets/icons/` and add an import line in `src/assets/icons/index.ts`. Vite bundles them at build time.
+
+Custom effects in the app can be uploaded from the **Effects** tab.
+
+Supported upload formats:
+- **Images**: PNG, JPG/JPEG, WEBP, SVG (max **1024KB**)
+- **Videos**: WEBM, MP4, OGG (max **8192KB**)
+
+Recommended for animated battle effects (explosions, muzzle flashes, smoke):
+- **WEBM with alpha** (best quality + transparency for overlays)
+- **Short MP4 loops** when transparency is not needed
+- **Sprite-sheet PNG sequences** if you want deterministic frame control in future tooling
+
+For best visual quality, keep clips short (0.3s–3s), tightly cropped to the effect area, and exported at square-ish dimensions (256–1024 px).
 
 ---
 

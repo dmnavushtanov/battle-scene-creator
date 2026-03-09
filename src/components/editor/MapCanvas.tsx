@@ -3,6 +3,7 @@ import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow }
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
 import type { MapObject, UnitType } from '@/domain/models';
+import type { CustomEffectAsset } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
 import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
 import { CrackEffect, BloodEffect, ExplosionEffect, SmokeEffect, FireEffect, GunshotEffect } from './effects';
@@ -30,6 +31,39 @@ function useImageCache(sources: string[]) {
     return () => { cancelled = true; };
   }, [sources]);
   return imageCache;
+}
+
+
+const videoCache = new Map<string, HTMLVideoElement>();
+
+function useVideoCache(sources: string[]) {
+  const [, forceRerender] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+
+    sources.forEach((src) => {
+      if (!src || videoCache.has(src)) return;
+
+      const video = document.createElement('video');
+      video.src = src;
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.oncanplay = () => {
+        videoCache.set(src, video);
+        if (!cancelled) forceRerender((v) => v + 1);
+      };
+    });
+
+    return () => { cancelled = true; };
+  }, [sources]);
+
+  return videoCache;
+}
+
+function isVideoDataUrl(url: string | undefined): boolean {
+  return Boolean(url && url.startsWith('data:video/'));
 }
 
 const MapCanvas: React.FC = () => {
@@ -61,6 +95,7 @@ const MapCanvas: React.FC = () => {
   const derivedTransforms = useEditorStore((s) => s.derivedTransforms);
   const derivedEffects = useEditorStore((s) => s.derivedEffects);
   const currentTime = useEditorStore((s) => s.currentTime);
+  const customEffects = useEditorStore((s) => s.customEffects);
 
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
   const updateObject = useEditorStore((s) => s.updateObject);
@@ -212,9 +247,11 @@ const MapCanvas: React.FC = () => {
     const ct = useEditorStore.getState().currentTime;
     const durMs = recordDurationSeconds * 1000;
     const obj = activeScene.objectsById[unitId];
+    const unitStartTime = obj?.startTime ?? 0;
+    const pathStartTime = Math.max(ct, unitStartTime);
 
     const keyframes = pathPoints.map((pt, i) => ({
-      time: ct + (i / (pathPoints.length - 1)) * durMs,
+      time: pathStartTime + (i / (pathPoints.length - 1)) * durMs,
       x: pt.x,
       y: pt.y,
       rotation: obj?.rotation || 0,
@@ -224,7 +261,7 @@ const MapCanvas: React.FC = () => {
     }));
     batchAddKeyframes(unitId, keyframes);
 
-    const endTime = ct + durMs;
+    const endTime = pathStartTime + durMs;
     if (endTime > activeScene.duration) {
       useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
     }
@@ -461,6 +498,14 @@ const MapCanvas: React.FC = () => {
     return null;
   };
 
+  const resolveDroppedCustomEffect = (effectData: string): CustomEffectAsset | null => {
+    if (!effectData.startsWith('custom:')) return null;
+    const customEffectId = effectData.slice('custom:'.length);
+    if (!customEffectId) return null;
+    const effectAsset = customEffects.find((effect) => effect.id === customEffectId);
+    return effectAsset || null;
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const stage = stageRef.current;
@@ -489,6 +534,20 @@ const MapCanvas: React.FC = () => {
 
     const effectData = e.dataTransfer.getData('application/effect-preset');
     if (!effectData) return;
+
+    const customEffect = resolveDroppedCustomEffect(effectData);
+    if (customEffect) {
+      const customEffectObject: MapObject = {
+        id: uuid(), type: 'effect', effectType: 'smoke', label: customEffect.label,
+        x: stageX, y: stageY, rotation: 0, scaleX: 1, scaleY: 1,
+        customIcon: customEffect.dataUrl,
+        layer: 'effects', visible: true, locked: false, width: 60, height: 60,
+      };
+      addObject(customEffectObject);
+      setSelectedIds([customEffectObject.id]);
+      return;
+    }
+
     const presetIndex = parseInt(effectData, 10);
     if (isNaN(presetIndex)) return;
     const preset = EFFECT_PRESETS[presetIndex];
@@ -514,7 +573,7 @@ const MapCanvas: React.FC = () => {
       addEffect(obj.id, effect);
       setSelectedIds([obj.id]);
     }
-  }, [stagePosition, stageScale, objectOrder, objectsById, addEffect, addObject, setSelectedIds]);
+  }, [stagePosition, stageScale, objectOrder, objectsById, addEffect, addObject, setSelectedIds, customEffects]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }, []);
 
@@ -563,11 +622,28 @@ const MapCanvas: React.FC = () => {
 
   const units = objectOrder.map((id) => objectsById[id]).filter((o) => o && (o.type === 'unit' || o.type === 'effect' || o.type === 'map_text'));
   const customIconSources = units.map((unit) => unit.customIcon).filter((src): src is string => Boolean(src));
+  const customImageSources = customIconSources.filter((src) => !isVideoDataUrl(src));
+  const customVideoSources = customIconSources.filter((src) => isVideoDataUrl(src));
   const builtInIconSources = Object.values(UNIT_ICON_URLS);
-  const allIconSources = [...customIconSources, ...builtInIconSources];
+  const allIconSources = [...customImageSources, ...builtInIconSources];
   const iconImages = useImageCache(allIconSources);
+  const videoEffects = useVideoCache(customVideoSources);
   const arrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'drawing' && o.drawTool === 'arrow');
   const animatedArrows = objectOrder.map((id) => objectsById[id]).filter((o) => o && o.type === 'animated_arrow');
+
+  useEffect(() => {
+    const videos = Array.from(videoEffects.values());
+    for (const video of videos) {
+      if (isPlaying) {
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => undefined);
+        }
+      } else {
+        video.pause();
+      }
+    }
+  }, [isPlaying, videoEffects]);
 
   // Status bar text for path drawing
   const getPathStatusText = () => {
@@ -746,6 +822,7 @@ const MapCanvas: React.FC = () => {
             const groupOpacity = isOutsideRange ? 0.25 : fadeOpacity;
 
             const customIconImage = unit.customIcon ? iconImages.get(unit.customIcon) : null;
+            const customVideoElement = unit.customIcon ? videoEffects.get(unit.customIcon) : null;
             const builtInIconUrl = UNIT_ICON_URLS[unit.unitType || 'infantry'];
             const builtInIconImage = builtInIconUrl ? iconImages.get(builtInIconUrl) : null;
             const isStandaloneEffect = unit.type === 'effect';
@@ -854,7 +931,13 @@ const MapCanvas: React.FC = () => {
                 {isStandaloneEffect && !isPlaying && (
                   <>
                     <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
-                    <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
+                    {customVideoElement ? (
+                      <KImage image={customVideoElement} x={-size / 2 + 8} y={-size / 2 + 8} width={size - 16} height={size - 16} />
+                    ) : customIconImage ? (
+                      <KImage image={customIconImage} x={-size / 2 + 8} y={-size / 2 + 8} width={size - 16} height={size - 16} />
+                    ) : (
+                      <Text x={-size / 2} y={-8} width={size} text={EFFECT_VISUAL_SYMBOLS[unit.effectType || ''] || '💥'} fontSize={16} align="center" listening={false} />
+                    )}
                     <Text x={-size / 2} y={10} width={size} text={unit.label || unit.effectType || 'FX'} fontSize={8} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill={EFFECT_COLORS[unit.effectType || ''] || '#ff8844'} align="center" listening={false} />
                     {staticEffects.length > 0 && (
                       <Text x={-size / 2} y={20} width={size} text={`${(staticEffects[0].startTime / 1000).toFixed(1)}s`} fontSize={7} fontFamily="JetBrains Mono, monospace" fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff8844') + '88'} align="center" listening={false} />
