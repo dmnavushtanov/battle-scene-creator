@@ -68,6 +68,7 @@ export interface EditorState {
   activeLayer: LayerType;
   currentTime: number;
   isPlaying: boolean;
+  isVideoExporting: boolean;
   isRecording: boolean;
   recordingSession: RecordingSession | null;
   recordDurationSeconds: number;
@@ -103,6 +104,7 @@ export interface EditorState {
   // Timeline
   setCurrentTime: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
+  setIsVideoExporting: (exporting: boolean) => void;
   seekTo: (time: number) => void;
 
   // Background
@@ -203,6 +205,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeLayer: 'units',
     currentTime: 0,
     isPlaying: false,
+    isVideoExporting: false,
     isRecording: false,
     recordingSession: null,
     recordDurationSeconds: 2.0,
@@ -287,6 +290,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     setCurrentTime: (time) => set({ currentTime: time }),
     setIsPlaying: (playing) => set({ isPlaying: playing }),
+    setIsVideoExporting: (exporting) => set({ isVideoExporting: exporting }),
 
     seekTo: (time) => {
       set({ currentTime: time });

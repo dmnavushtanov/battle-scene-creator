@@ -101,6 +101,7 @@ const MapCanvas: React.FC = () => {
   const stagePosition = useEditorStore((s) => s.stagePosition);
   const isRecording = useEditorStore((s) => s.isRecording);
   const isPlaying = useEditorStore((s) => s.isPlaying);
+  const isVideoExporting = useEditorStore((s) => s.isVideoExporting);
   const derivedTransforms = useEditorStore((s) => s.derivedTransforms);
   const derivedEffects = useEditorStore((s) => s.derivedEffects);
   const currentTime = useEditorStore((s) => s.currentTime);
@@ -127,6 +128,7 @@ const MapCanvas: React.FC = () => {
   const objectOrder = activeScene.objectOrder;
   const backgroundImage = activeScene.backgroundImage;
   const groups = activeScene.groups || {};
+  const isExportRender = isVideoExporting;
 
   useEffect(() => { window.__konvaStageRef = stageRef; }, []);
 
@@ -731,7 +733,7 @@ const MapCanvas: React.FC = () => {
       )}
 
       {/* Path drawing status bar */}
-      {activeTool === 'path' && (
+      {activeTool === 'path' && !isExportRender && (
         <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-accent/20 border border-accent/50 rounded text-[10px] font-mono text-accent flex items-center gap-2">
           <Route size={12} />
           {getPathStatusText()}
@@ -758,10 +760,10 @@ const MapCanvas: React.FC = () => {
         <Layer>
           <Rect id="bg-rect" x={0} y={0} width={1920} height={1080} fill="#0d1117" />
           {bgImage && <KImage image={bgImage} x={0} y={0} width={1920} height={1080} />}
-          {Array.from({ length: 97 }, (_, i) => (
+          {!isExportRender && Array.from({ length: 97 }, (_, i) => (
             <Line key={`vg-${i}`} id={`grid-v-${i}`} points={[i * 20, 0, i * 20, 1080]} stroke="#1a2332" strokeWidth={0.5} listening={false} />
           ))}
-          {Array.from({ length: 55 }, (_, i) => (
+          {!isExportRender && Array.from({ length: 55 }, (_, i) => (
             <Line key={`hg-${i}`} id={`grid-h-${i}`} points={[0, i * 20, 1920, i * 20]} stroke="#1a2332" strokeWidth={0.5} listening={false} />
           ))}
         </Layer>
@@ -809,19 +811,19 @@ const MapCanvas: React.FC = () => {
               >
                 <Arrow points={[x1, y1, ex, ey]} stroke="#000000" strokeWidth={5} opacity={0.4} pointerLength={14} pointerWidth={12} lineCap="round" lineJoin="round" />
                 <Arrow points={[x1, y1, ex, ey]} stroke={color} strokeWidth={3} pointerLength={12} pointerWidth={10} fill={color} lineCap="round" lineJoin="round" opacity={0.9} />
-                {isSelected && (
+                {!isExportRender && isSelected && (
                   <Arrow points={[x1, y1, x2, y2]} stroke="#ffffff" strokeWidth={1} dash={[4, 4]} pointerLength={10} pointerWidth={8} opacity={0.4} listening={false} />
                 )}
-                {!isPlaying && (
+                {!isPlaying && !isExportRender && (
                   <Text x={x1} y={y1 - 16} text={`▶ ${((endT - startT) / 1000).toFixed(1)}s`} fontSize={9} fontFamily="JetBrains Mono, monospace" fill={color} opacity={0.7} listening={false} />
                 )}
               </Group>
             );
           })}
-          {drawingArrow && (
+          {!isExportRender && drawingArrow && (
             <Arrow points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]} stroke="#d4a843" strokeWidth={3} dash={[10, 6]} pointerLength={12} pointerWidth={10} fill="#d4a843" opacity={0.6} listening={false} />
           )}
-          {pathStartAnchor && (
+          {!isExportRender && pathStartAnchor && (
             <>
               {previewPathPoints.length > 1 && (
                 <Line points={previewPathPoints.flatMap((p) => [p.x, p.y])} stroke="#00bcd4" strokeWidth={2} dash={[6, 4]} opacity={0.8} listening={false} />
@@ -913,12 +915,12 @@ const MapCanvas: React.FC = () => {
                 onDragEnd={(e) => handleDragEnd(unit.id, e)}
               >
                 {/* Group highlight */}
-                {isGroupHighlighted && (
+                {!isExportRender && isGroupHighlighted && (
                   <Rect x={-size / 2 - 6} y={-size / 2 - 6} width={size + 12} height={size + 12} stroke={highlightGroupColor} strokeWidth={2} dash={[4, 3]} cornerRadius={6} opacity={0.7} listening={false} />
                 )}
 
                 {/* Selection ring */}
-                {isSelected && (
+                {!isExportRender && isSelected && (
                   <Rect x={-size / 2 - 4} y={-size / 2 - 4} width={size + 8} height={size + 8} stroke={group ? group.color : UNIT_COLOR} strokeWidth={2} dash={selectedIds.length > 1 ? [6, 3] : [4, 4]} cornerRadius={4} />
                 )}
 
@@ -937,20 +939,20 @@ const MapCanvas: React.FC = () => {
                         <Text x={-size / 2} y={-size / 2 + 4} width={size} text={getUnitShortLabel(unit.unitType)} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
                       )}
                       {hasFactionColor && <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />}
-                      {group && (
+                      {!isExportRender && group && (
                         <>
                           <Circle x={-size / 2 + 4} y={-size / 2 + 4} radius={5} fill={group.color} opacity={0.9} listening={false} />
                           <Text x={-size / 2 + 1} y={-size / 2 + 0.5} text={group.name.charAt(0).toUpperCase()} fontSize={7} fontFamily="JetBrains Mono, monospace" fontStyle="bold" fill="#fff" width={7} align="center" listening={false} />
                         </>
                       )}
                       {/* Effect badges */}
-                      {staticEffects.slice(0, 3).map((eff, i) => (
+                      {!isExportRender && staticEffects.slice(0, 3).map((eff, i) => (
                         <React.Fragment key={eff.id}>
                           <Circle x={size / 2 - 4 - i * 9} y={size / 2 - 4} radius={4} fill={EFFECT_COLORS[eff.type] || '#ff6600'} opacity={0.85} listening={false} />
                           <Text x={size / 2 - 7 - i * 9} y={size / 2 - 8} text={EFFECT_VISUAL_SYMBOLS[eff.type] || '?'} fontSize={6} listening={false} />
                         </React.Fragment>
                       ))}
-                      {staticEffects.length > 3 && (
+                      {!isExportRender && staticEffects.length > 3 && (
                         <Text x={size / 2 - 4 - 3 * 9} y={size / 2 - 7} text={`+${staticEffects.length - 3}`} fontSize={6} fontFamily="JetBrains Mono, monospace" fill="#fff" listening={false} />
                       )}
                     </>
@@ -974,14 +976,14 @@ const MapCanvas: React.FC = () => {
                       align="center"
                       listening={false}
                     />
-                    {isSelected && (
+                    {!isExportRender && isSelected && (
                       <Rect x={-100} y={-(unit.fontSize || 20) / 2 - 6} width={200} height={(unit.fontSize || 20) + 12} stroke="#ffffff" strokeWidth={1} dash={[4, 3]} cornerRadius={3} opacity={0.5} listening={false} />
                     )}
                   </>
                 )}
 
                 {/* Standalone effect placeholder */}
-                {isStandaloneEffect && !isPlaying && (
+                {isStandaloneEffect && !isPlaying && !isExportRender && (
                   <>
                     <Circle x={0} y={0} radius={size * 0.4} fill={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '15'} stroke={(EFFECT_COLORS[unit.effectType || ''] || '#ff6600') + '66'} strokeWidth={1.5} dash={[4, 3]} listening={true} />
                     {customVideoElement ? (
@@ -997,7 +999,7 @@ const MapCanvas: React.FC = () => {
                     )}
                   </>
                 )}
-                {isStandaloneEffect && isPlaying && (
+                {isStandaloneEffect && (isPlaying || isExportRender) && (
                   <Circle x={0} y={0} radius={size * 0.4} fill="transparent" listening={false} />
                 )}
 
@@ -1014,7 +1016,7 @@ const MapCanvas: React.FC = () => {
         </Layer>
 
         {/* Selection rectangle overlay */}
-        {selectionRect && (
+        {selectionRect && !isExportRender && (
           <Layer>
             <Rect
               x={Math.min(selectionRect.x1, selectionRect.x2)}
@@ -1032,7 +1034,7 @@ const MapCanvas: React.FC = () => {
       </Stage>
 
       {/* Context menu */}
-      {contextMenu && (
+      {contextMenu && !isExportRender && (
         <div
           className="absolute z-50 bg-panel border border-border rounded shadow-lg py-1 min-w-[180px] max-h-[400px] overflow-y-auto scrollbar-tactical"
           style={{ left: contextMenu.x, top: contextMenu.y }}

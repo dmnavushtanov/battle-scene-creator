@@ -74,6 +74,7 @@ const Toolbar: React.FC = () => {
   const setRecordDurationSeconds = useEditorStore((s) => s.setRecordDurationSeconds);
   const currentTime = useEditorStore((s) => s.currentTime);
   const computeDerivedTransforms = useEditorStore((s) => s.computeDerivedTransforms);
+  const setIsVideoExporting = useEditorStore((s) => s.setIsVideoExporting);
   const recordingSession = useEditorStore((s) => s.recordingSession);
   const activeScene = useEditorStore((s) => {
     const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
@@ -142,6 +143,7 @@ const Toolbar: React.FC = () => {
     const scene = useEditorStore.getState().getActiveScene();
 
     setIsExporting(true);
+    setIsVideoExporting(true);
     setExportProgress(0);
 
     try {
@@ -190,6 +192,7 @@ const Toolbar: React.FC = () => {
       alert('Video export failed. Your browser may not support WebM recording.');
     } finally {
       setIsExporting(false);
+      setIsVideoExporting(false);
       const time = useEditorStore.getState().currentTime;
       computeDerivedTransforms(time);
     }
