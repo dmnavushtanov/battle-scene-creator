@@ -44,6 +44,14 @@ export interface MapLibraryItem {
   dataUrl: string;
 }
 
+export interface CustomEffectAsset {
+  id: string;
+  label: string;
+  dataUrl: string;
+  mimeType: string;
+  mediaType: 'image' | 'video';
+}
+
 export interface ClipboardData {
   type: 'unit' | 'effect';
   object?: MapObject;
@@ -70,6 +78,7 @@ export interface EditorState {
   activeNarrations: NarrationEvent[];
   activeOverlay: OverlayEvent | null;
   customIcons: CustomIcon[];
+  customEffects: CustomEffectAsset[];
   mapLibrary: MapLibraryItem[];
   selectedNarrationId: string | null;
   selectedOverlayId: string | null;
@@ -169,6 +178,10 @@ export interface EditorState {
   addMapToLibrary: (item: MapLibraryItem) => void;
   removeMapFromLibrary: (id: string) => void;
 
+  // Custom effects
+  addCustomEffect: (effect: CustomEffectAsset) => void;
+  removeCustomEffect: (id: string) => void;
+
   // Clipboard
   copySelected: () => void;
   pasteClipboard: () => void;
@@ -199,6 +212,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeNarrations: [],
     activeOverlay: null,
     customIcons: [],
+    customEffects: [],
     mapLibrary: [],
     selectedNarrationId: null,
     selectedOverlayId: null,
@@ -691,6 +705,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     addMapToLibrary: (item) => set((s) => ({ mapLibrary: [...s.mapLibrary, item] })),
     removeMapFromLibrary: (id) => set((s) => ({ mapLibrary: s.mapLibrary.filter((i) => i.id !== id) })),
+
+    addCustomEffect: (effect) => set((s) => ({ customEffects: [...s.customEffects, effect] })),
+    removeCustomEffect: (id) => set((s) => ({ customEffects: s.customEffects.filter((i) => i.id !== id) })),
 
     // Clipboard
     copySelected: () => {
