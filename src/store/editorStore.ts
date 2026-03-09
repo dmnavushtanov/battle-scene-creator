@@ -165,6 +165,10 @@ export interface EditorState {
   addCustomIcon: (icon: CustomIcon) => void;
   removeCustomIcon: (id: string) => void;
 
+  // Map library
+  addMapToLibrary: (item: MapLibraryItem) => void;
+  removeMapFromLibrary: (id: string) => void;
+
   // Clipboard
   copySelected: () => void;
   pasteClipboard: () => void;
