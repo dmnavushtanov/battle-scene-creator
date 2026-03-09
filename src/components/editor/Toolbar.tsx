@@ -3,6 +3,12 @@ import { useEditorStore } from '@/store/editorStore';
 import { exportVideo } from '@/domain/services/videoExport';
 import type { DrawToolType } from '@/domain/models';
 import Konva from 'konva';
+
+declare global {
+  interface Window {
+    __konvaStageRef?: React.RefObject<Konva.Stage | null>;
+  }
+}
 import {
   MousePointer2,
   MoveRight,
@@ -129,7 +135,7 @@ const Toolbar: React.FC = () => {
   };
 
   const handleVideoExport = async () => {
-    const stageRef = (window as any).__konvaStageRef;
+    const stageRef = window.__konvaStageRef;
     if (!stageRef?.current) return;
 
     const stage = stageRef.current as Konva.Stage;

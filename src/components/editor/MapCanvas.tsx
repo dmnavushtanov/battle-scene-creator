@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Stage, Layer, Rect, Image as KImage, Group, Text, Circle, Line, Arrow } from 'react-konva';
 import Konva from 'konva';
 import { useEditorStore } from '@/store/editorStore';
-import type { MapObject, UnitType } from '@/domain/models';
+import type { MapObject, ObjectCategory, UnitType } from '@/domain/models';
 import type { CustomEffectAsset } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
 import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
@@ -16,6 +16,12 @@ import { toast } from '@/hooks/use-toast';
 
 // --- Image cache for custom icons AND built-in unit icons ---
 const imageCache = new Map<string, HTMLImageElement>();
+
+declare global {
+  interface Window {
+    __konvaStageRef?: React.RefObject<Konva.Stage | null>;
+  }
+}
 
 function useImageCache(sources: string[]) {
   const [, forceRerender] = useState(0);
@@ -121,7 +127,7 @@ const MapCanvas: React.FC = () => {
   const backgroundImage = activeScene.backgroundImage;
   const groups = activeScene.groups || {};
 
-  useEffect(() => { (window as any).__konvaStageRef = stageRef; }, []);
+  useEffect(() => { window.__konvaStageRef = stageRef; }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -463,7 +469,7 @@ const MapCanvas: React.FC = () => {
     const cy = (contextMenu.y - stagePosition.y) / stageScale;
     const category = UNIT_CATEGORY[unitType] || 'military';
     const obj: MapObject = {
-      id: uuid(), type: 'unit', unitType, objectCategory: category as any,
+      id: uuid(), type: 'unit', unitType, objectCategory: category as ObjectCategory,
       label: unitType, x: cx, y: cy,
       rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
       visible: true, locked: false, width: 50, height: 50,
@@ -517,13 +523,13 @@ const MapCanvas: React.FC = () => {
     return null;
   };
 
-  const resolveDroppedCustomEffect = (effectData: string): CustomEffectAsset | null => {
+  const resolveDroppedCustomEffect = useCallback((effectData: string): CustomEffectAsset | null => {
     if (!effectData.startsWith('custom:')) return null;
     const customEffectId = effectData.slice('custom:'.length);
     if (!customEffectId) return null;
     const effectAsset = customEffects.find((effect) => effect.id === customEffectId);
     return effectAsset || null;
-  };
+  }, [customEffects]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -536,10 +542,14 @@ const MapCanvas: React.FC = () => {
 
     const unitData = e.dataTransfer.getData('application/unit-type');
     if (unitData) {
+      const isKnownUnitType = UNIT_TYPES.some((unit) => unit.type === unitData);
+      if (!isKnownUnitType) {
+        return;
+      }
       const category = UNIT_CATEGORY[unitData] || 'military';
       const obj: MapObject = {
-        id: uuid(), type: 'unit', unitType: unitData as any,
-        objectCategory: category as any,
+        id: uuid(), type: 'unit', unitType: unitData,
+        objectCategory: category as ObjectCategory,
         label: e.dataTransfer.getData('application/unit-label') || unitData,
         customIcon: e.dataTransfer.getData('application/custom-icon') || undefined,
         x: stageX, y: stageY, rotation: 0, scaleX: 1, scaleY: 1,
@@ -592,7 +602,7 @@ const MapCanvas: React.FC = () => {
       addEffect(obj.id, effect);
       setSelectedIds([obj.id]);
     }
-  }, [stagePosition, stageScale, objectOrder, objectsById, addEffect, addObject, setSelectedIds, customEffects]);
+  }, [stagePosition, stageScale, objectOrder, objectsById, addEffect, addObject, setSelectedIds, resolveDroppedCustomEffect]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }, []);
 

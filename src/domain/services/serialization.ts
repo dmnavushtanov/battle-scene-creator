@@ -1,4 +1,4 @@
-import type { ProjectData, Scene, Keyframe } from '../models';
+import type { ProjectData, Scene, Keyframe, MapObject } from '../models';
 import { v4 as uuid } from 'uuid';
 
 const CURRENT_VERSION = '1.0';
@@ -17,7 +17,7 @@ export function importProject(json: string): ProjectData {
 
   // Migrate from old flat format (pre-scene model)
   if (data.objects && !data.scenes) {
-    const objectsById: Record<string, any> = {};
+    const objectsById: Record<string, MapObject> = {};
     const objectOrder: string[] = [];
     for (const obj of data.objects) {
       objectsById[obj.id] = obj;
