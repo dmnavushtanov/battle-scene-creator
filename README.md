@@ -231,3 +231,21 @@ For best visual quality, keep clips short (0.3s–3s), tightly cropped to the ef
 - Easing curves for keyframe interpolation
 - Grid snapping for formation alignment
 - Duplicate scene for sequential battle phases
+
+---
+
+## Deploy to GitHub Pages
+
+This repository is configured for GitHub Pages with a workflow at:
+- `.github/workflows/deploy-github-pages.yml`
+
+### One-time setup in GitHub
+1. Open **Settings → Pages** in your repository.
+2. Under **Build and deployment**, choose **Source: GitHub Actions**.
+3. Push to the `main` branch (or run the workflow manually from Actions).
+
+### Notes
+- The Vite `base` path is auto-detected during GitHub Actions builds:
+  - `https://<user>.github.io/<repo>/` for project pages
+  - `https://<user>.github.io/` for user/organization pages (`<user>.github.io` repo)
+- A `404.html` SPA fallback is included so direct navigation to nested routes still works on GitHub Pages.
