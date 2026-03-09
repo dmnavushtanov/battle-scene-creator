@@ -85,8 +85,14 @@ const AssetLibrary: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setBackgroundImage(reader.result as string);
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const label = file.name.replace(/\.[^.]+$/, '').slice(0, 20);
+      addMapToLibrary({ id: uuid(), label, dataUrl });
+      setBackgroundImage(dataUrl);
+    };
     reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
