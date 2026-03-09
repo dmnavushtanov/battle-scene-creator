@@ -146,6 +146,7 @@ const PropertiesPanel: React.FC = () => {
                 </label>
                 <input type="number" step={0.1} min={0} value={+((single.fadeOutDuration ?? 0) / 1000).toFixed(2)} onChange={(e) => updateObject(single.id, { fadeOutDuration: Math.max(0, Number(e.target.value) * 1000) })} className="w-full bg-muted border border-border rounded px-2 py-1 text-xs font-mono text-foreground mt-1" />
                 <p className="text-[8px] font-mono text-muted-foreground/80 mt-1">Fade Out: seconds to ramp from 100% to 0% opacity before Visible Until.</p>
+                <p className="text-[8px] font-mono text-muted-foreground/70 mt-1">Fade Out always ends at Visible Until.</p>
               </div>
             </div>
             <p className="text-[8px] font-mono text-muted-foreground/70">

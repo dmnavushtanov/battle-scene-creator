@@ -12,6 +12,7 @@ import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
 import { evaluateObjectAtTime } from '@/domain/services/timeline';
+import { toast } from '@/hooks/use-toast';
 
 // --- Image cache for custom icons AND built-in unit icons ---
 const imageCache = new Map<string, HTMLImageElement>();
@@ -230,9 +231,6 @@ const MapCanvas: React.FC = () => {
   /** Save the current path as keyframes for the selected unit */
   const finalizePath = () => {
     if (pathPoints.length < 2) {
-      setPathPoints([]);
-      isDrawingPath.current = false;
-      setActiveTool('select');
       return;
     }
 
@@ -258,6 +256,7 @@ const MapCanvas: React.FC = () => {
     const unitStartTime = obj?.startTime ?? 0;
     const pathStartTime = Math.max(ct, unitStartTime);
     const existingKeyframes = activeScene.keyframesByObjectId[unitId] || [];
+    const hasOverwrittenFutureKeyframes = existingKeyframes.some((kf) => kf.time >= pathStartTime);
     const evaluatedStart = evaluateObjectAtTime(obj, existingKeyframes, pathStartTime);
     const waypoints = [{ x: evaluatedStart.x, y: evaluatedStart.y }, ...pathPoints];
 
@@ -271,6 +270,13 @@ const MapCanvas: React.FC = () => {
       visible: evaluatedStart.visible,
     }));
     replaceKeyframesFromTime(unitId, pathStartTime, keyframes);
+
+    if (hasOverwrittenFutureKeyframes) {
+      toast({
+        title: 'Path saved',
+        description: 'Replaced future movement from this point.',
+      });
+    }
 
     const endTime = pathStartTime + durMs;
     if (endTime > activeScene.duration) {
@@ -434,8 +440,10 @@ const MapCanvas: React.FC = () => {
   // Right-click on stage: finalize path if drawing, or show add menu on empty space
   const handleStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
-    if (activeTool === 'path' && pathPoints.length >= 2) {
-      finalizePath();
+    if (activeTool === 'path') {
+      if (pathPoints.length >= 2) {
+        finalizePath();
+      }
       return;
     }
 
@@ -593,8 +601,10 @@ const MapCanvas: React.FC = () => {
     e.cancelBubble = true;
 
     // If we're drawing a path, right-click saves it instead of showing menu
-    if (activeTool === 'path' && pathPoints.length >= 2) {
-      finalizePath();
+    if (activeTool === 'path') {
+      if (pathPoints.length >= 2) {
+        finalizePath();
+      }
       return;
     }
 
@@ -664,11 +674,13 @@ const MapCanvas: React.FC = () => {
     const unit = objectsById[sids[0]];
     const unitName = unit?.label || unit?.unitType || 'Unit';
     const durLabel = `Path duration: ${recordDurationSeconds}s (change in toolbar)`;
-    const overwriteHint = 'Saving path replaces future movement from current time.';
+    const startHint = 'Start is locked to the unit\'s current position.';
+    const overwriteHint = 'Saving this path replaces future movement.';
+    const saveHint = pathPoints.length < 2 ? 'Add at least 2 points to save.' : 'Right-click to save.';
     if (pathPoints.length === 0) {
-      return `Drawing path for "${unitName}" — Left-click: add point, Right-click: save, Esc: cancel · ${durLabel} · ${overwriteHint}`;
+      return `Drawing path for "${unitName}" — Left-click: add point, Esc: cancel · ${saveHint} · ${startHint} · ${durLabel} · ${overwriteHint}`;
     }
-    return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add, Right-click: save, Esc: cancel · ${durLabel} · ${overwriteHint}`;
+    return `${pathPoints.length} points for "${unitName}" — Left-click: add, Esc: cancel · ${saveHint} · ${startHint} · ${durLabel} · ${overwriteHint}`;
   };
 
   const getPathStartAnchor = () => {
