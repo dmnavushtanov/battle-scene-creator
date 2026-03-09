@@ -2,7 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "**"
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -38,6 +40,12 @@ jobs:
 
       - name: Add .nojekyll
         run: touch dist/.nojekyll
+
+      - name: Verify build output
+        run: |
+          test -f dist/index.html
+          echo "Pages artifact preview:"
+          find dist -maxdepth 2 -type f | head -n 20
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

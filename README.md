@@ -195,6 +195,32 @@ src/
 
 ---
 
+
+## Deploying to GitHub Pages
+
+This project is a Vite app, so the deployed site must serve the **build output** (`dist/`), not the raw `src/` files.
+
+### 1) Repository structure
+Keep `index.html` at the repository root (current setup). Do **not** move it under `src/`.
+
+### 2) Pages settings
+Go to **Repository → Settings → Pages** and set:
+- **Source**: `GitHub Actions`
+
+> Tip: this repo's workflow deploys from the repository **default branch** automatically (not hardcoded to `main`).
+
+> If you instead choose **Deploy from branch**, GitHub will publish your source files and the app will not run correctly.
+
+### 3) Workflow artifact
+The workflow in `.github/workflows/deploy-github-pages.yml` uploads `./dist` (the folder that contains built `index.html`) to Pages.
+
+### 4) Base path
+When deployed from a project repository (for example `username.github.io/battle-scene-creator/`), Vite automatically uses `/battle-scene-creator/` as base path in GitHub Actions builds.
+
+If the site is still 404ing, verify **Settings → Pages → Source = GitHub Actions** and ensure the workflow named **Deploy to GitHub Pages** ran from your repository **default branch** and produced `dist/index.html`.
+
+---
+
 ## Running Locally
 
 ```sh
