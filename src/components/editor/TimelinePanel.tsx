@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { Play, Pause, SkipBack, SkipForward, Plus, Trash2, ZoomIn, ZoomOut, Lock, Unlock, Volume2, ChevronRight, ChevronDown } from 'lucide-react';
 import { v4 as uuid } from 'uuid';
-import type { NarrationEvent, OverlayEvent, SoundEvent } from '@/domain/models';
+import type { NarrationEvent, OverlayEvent, SoundEvent, MapObject } from '@/domain/models';
 import { EFFECT_COLORS } from '@/domain/constants';
 import { formatTime } from '@/domain/formatters';
 import {
