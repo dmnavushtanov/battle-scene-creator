@@ -1,5 +1,4 @@
-export type UnitType =
-  | 'infantry';
+export type UnitType = string;
 
 export type ObjectCategory = 'military' | 'structure' | 'prop' | 'terrain';
 export type DrawToolType = 'select' | 'arrow' | 'path' | 'animated_arrow' | 'text';

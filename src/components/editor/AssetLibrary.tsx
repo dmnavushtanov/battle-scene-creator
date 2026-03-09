@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useEditorStore } from '@/store/editorStore';
 import UnitIcon, { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
-import type { UnitType, MapObject, ObjectCategory } from '@/domain/models';
+import type { UnitType, MapObject } from '@/domain/models';
 import { ImageIcon, Trash2, Sparkles, GripVertical, Volume2, ChevronDown, ChevronRight } from 'lucide-react';
 import { EFFECT_PRESETS } from '@/domain/services/effects';
-import { EFFECT_COLORS, UNIT_CATEGORY } from '@/domain/constants';
+import { EFFECT_COLORS } from '@/domain/constants';
+import { getUnitCategory, getUnitDisplayLabel } from '@/domain/unitMetadata';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { BUILT_IN_MAPS } from '@/assets/maps';
 
@@ -81,9 +82,9 @@ const AssetLibrary: React.FC = () => {
   };
 
   const handleAddUnit = (unitType: UnitType) => {
-    const category = UNIT_CATEGORY[unitType] as ObjectCategory || 'military';
+    const category = getUnitCategory(unitType);
     const obj: MapObject = {
-      id: uuid(), type: 'unit', unitType, objectCategory: category, label: unitType,
+      id: uuid(), type: 'unit', unitType, objectCategory: category, label: getUnitDisplayLabel(unitType),
       x: 400 + Math.random() * 200, y: 300 + Math.random() * 200,
       rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
       visible: true, locked: false, width: ICON_RENDER_SIZE, height: ICON_RENDER_SIZE,
@@ -206,7 +207,7 @@ const AssetLibrary: React.FC = () => {
 
   const handleUnitDragStart = (e: React.DragEvent, unitType: UnitType) => {
     e.dataTransfer.setData('application/unit-type', unitType);
-    e.dataTransfer.setData('application/unit-label', unitType);
+    e.dataTransfer.setData('application/unit-label', getUnitDisplayLabel(unitType));
     e.dataTransfer.effectAllowed = 'copy';
   };
 

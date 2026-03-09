@@ -5,9 +5,10 @@ import { useEditorStore } from '@/store/editorStore';
 import type { MapObject, ObjectCategory, UnitType } from '@/domain/models';
 import type { CustomEffectAsset } from '@/store/editorStore';
 import { EFFECT_PRESETS, createEffectFromPreset, getShakeOffset } from '@/domain/services/effects';
-import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_LABELS, UNIT_COLOR, UNIT_CATEGORY } from '@/domain/constants';
+import { EFFECT_COLORS, EFFECT_VISUAL_SYMBOLS, UNIT_COLOR } from '@/domain/constants';
 import { CrackEffect, BloodEffect, ExplosionEffect, SmokeEffect, FireEffect, GunshotEffect } from './effects';
 import { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
+import { getUnitCategory, getUnitDisplayLabel, getUnitShortLabel } from '@/domain/unitMetadata';
 import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
@@ -467,10 +468,10 @@ const MapCanvas: React.FC = () => {
     if (!contextMenu) return;
     const cx = (contextMenu.x - stagePosition.x) / stageScale;
     const cy = (contextMenu.y - stagePosition.y) / stageScale;
-    const category = UNIT_CATEGORY[unitType] || 'military';
+    const category = getUnitCategory(unitType);
     const obj: MapObject = {
       id: uuid(), type: 'unit', unitType, objectCategory: category as ObjectCategory,
-      label: unitType, x: cx, y: cy,
+      label: getUnitDisplayLabel(unitType), x: cx, y: cy,
       rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
       visible: true, locked: false, width: 50, height: 50,
     };
@@ -542,11 +543,7 @@ const MapCanvas: React.FC = () => {
 
     const unitData = e.dataTransfer.getData('application/unit-type');
     if (unitData) {
-      const isKnownUnitType = UNIT_TYPES.some((unit) => unit.type === unitData);
-      if (!isKnownUnitType) {
-        return;
-      }
-      const category = UNIT_CATEGORY[unitData] || 'military';
+      const category = getUnitCategory(unitData);
       const obj: MapObject = {
         id: uuid(), type: 'unit', unitType: unitData,
         objectCategory: category as ObjectCategory,
@@ -879,7 +876,7 @@ const MapCanvas: React.FC = () => {
 
             const customIconImage = unit.customIcon ? iconImages.get(unit.customIcon) : null;
             const customVideoElement = unit.customIcon ? videoEffects.get(unit.customIcon) : null;
-            const builtInIconUrl = UNIT_ICON_URLS[unit.unitType || 'infantry'];
+            const builtInIconUrl = UNIT_ICON_URLS[unit.unitType ?? ''];
             const builtInIconImage = builtInIconUrl ? iconImages.get(builtInIconUrl) : null;
             const isStandaloneEffect = unit.type === 'effect';
             const unitEffects = derivedEffects[unit.id] || [];
@@ -937,7 +934,7 @@ const MapCanvas: React.FC = () => {
                       {customIconImage && <KImage image={customIconImage} x={-size / 2 + (hasFactionColor ? 4 : 0)} y={-size / 2 + (hasFactionColor ? 4 : 0)} width={size - (hasFactionColor ? 8 : 0)} height={size - (hasFactionColor ? 8 : 0)} />}
                       {!customIconImage && builtInIconImage && <KImage image={builtInIconImage} x={-size / 2 + (hasFactionColor ? 2 : 0)} y={-size / 2 + (hasFactionColor ? 2 : 0)} width={size - (hasFactionColor ? 4 : 0)} height={size - (hasFactionColor ? 4 : 0)} />}
                       {!customIconImage && !builtInIconImage && (
-                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={UNIT_LABELS[unit.unitType || 'infantry'] || '?'} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
+                        <Text x={-size / 2} y={-size / 2 + 4} width={size} text={getUnitShortLabel(unit.unitType)} fontSize={size * 0.35} fontFamily="JetBrains Mono, monospace" fontStyle="bold" align="center" fill={unitColor} />
                       )}
                       {hasFactionColor && <Circle x={size / 2 - 4} y={-size / 2 + 4} radius={4} fill={unitColor} />}
                       {group && (
