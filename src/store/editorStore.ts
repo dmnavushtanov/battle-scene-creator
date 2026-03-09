@@ -199,6 +199,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeNarrations: [],
     activeOverlay: null,
     customIcons: [],
+    mapLibrary: [],
     selectedNarrationId: null,
     selectedOverlayId: null,
     selectedKeyframeIndex: null,
