@@ -207,8 +207,6 @@ Keep `index.html` at the repository root (current setup). Do **not** move it und
 Go to **Repository → Settings → Pages** and set:
 - **Source**: `GitHub Actions`
 
-> Tip: this repo's workflow deploys from the repository **default branch** automatically (not hardcoded to `main`).
-
 > If you instead choose **Deploy from branch**, GitHub will publish your source files and the app will not run correctly.
 
 ### 3) Workflow artifact
@@ -217,7 +215,7 @@ The workflow in `.github/workflows/deploy-github-pages.yml` uploads `./dist` (th
 ### 4) Base path
 When deployed from a project repository (for example `username.github.io/battle-scene-creator/`), Vite automatically uses `/battle-scene-creator/` as base path in GitHub Actions builds.
 
-If the site is still 404ing, verify **Settings → Pages → Source = GitHub Actions** and ensure the workflow named **Deploy to GitHub Pages** ran from your repository **default branch** and produced `dist/index.html`.
+If the site is still 404ing, re-run the **Deploy to GitHub Pages** workflow and confirm the artifact contains `dist/index.html`.
 
 ---
 
