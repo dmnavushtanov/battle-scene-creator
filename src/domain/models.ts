@@ -48,6 +48,11 @@ export interface MapObject {
   // Animated arrow timing
   animStartTime?: number;
   animEndTime?: number;
+  // Unit lifespan on timeline
+  startTime?: number;
+  endTime?: number;
+  fadeInDuration?: number;
+  fadeOutDuration?: number;
 }
 
 export interface Keyframe {
