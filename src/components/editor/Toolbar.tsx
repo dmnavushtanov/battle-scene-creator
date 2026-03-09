@@ -33,6 +33,27 @@ const TOOLS: { tool: DrawToolType; icon: React.ReactNode; label: string; tip: st
   { tool: 'text', icon: <Type size={16} />, label: 'Text', tip: 'Click on canvas to place a text label (city names, dates, annotations)' },
 ];
 
+type ExportFormat = {
+  id: string;
+  label: string;
+  mimeType: string;
+  extension: string;
+};
+
+const EXPORT_FORMATS: ExportFormat[] = [
+  { id: 'webm-vp9', label: 'WebM (VP9)', mimeType: 'video/webm;codecs=vp9', extension: 'webm' },
+  { id: 'webm-vp8', label: 'WebM (VP8)', mimeType: 'video/webm;codecs=vp8', extension: 'webm' },
+  { id: 'mp4-h264', label: 'MP4 (H.264)', mimeType: 'video/mp4;codecs=avc1.42E01E', extension: 'mp4' },
+  { id: 'ogg-theora', label: 'OGG (Theora)', mimeType: 'video/ogg;codecs=theora', extension: 'ogv' },
+];
+
+const EXPORT_RESOLUTIONS = [
+  { id: 'source', label: 'Source (1x)', scale: 1 },
+  { id: 'hd', label: 'HD-ish (1.5x)', scale: 1.5 },
+  { id: 'full-hd', label: 'Full HD-ish (2x)', scale: 2 },
+  { id: 'ultra', label: 'Ultra (3x)', scale: 3 },
+];
+
 const Toolbar: React.FC = () => {
   const activeTool = useEditorStore((s) => s.activeTool);
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
@@ -57,6 +78,15 @@ const Toolbar: React.FC = () => {
 
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState(0);
+  const [exportFormatId, setExportFormatId] = React.useState(EXPORT_FORMATS[0].id);
+  const [exportResolutionId, setExportResolutionId] = React.useState(EXPORT_RESOLUTIONS[2].id);
+
+  const supportedFormats = React.useMemo(
+    () => EXPORT_FORMATS.map((format) => ({ ...format, supported: MediaRecorder.isTypeSupported(format.mimeType) })),
+    []
+  );
+  const selectedFormat = supportedFormats.find((f) => f.id === exportFormatId) || supportedFormats[0];
+  const selectedResolution = EXPORT_RESOLUTIONS.find((r) => r.id === exportResolutionId) || EXPORT_RESOLUTIONS[0];
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -113,6 +143,9 @@ const Toolbar: React.FC = () => {
         stage,
         duration: scene.duration,
         fps: 30,
+        mimeType: selectedFormat.mimeType,
+        scale: selectedResolution.scale,
+        videoBitsPerSecond: Math.round(12_000_000 * selectedResolution.scale * selectedResolution.scale),
         onProgress: setExportProgress,
         getNarrations: (time: number) => {
           return (scene.narrationEvents || []).filter(
@@ -143,7 +176,7 @@ const Toolbar: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${scene.name || 'battle'}-export.webm`;
+      a.download = `${scene.name || 'battle'}-export.${selectedFormat.extension}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -361,7 +394,7 @@ const Toolbar: React.FC = () => {
           <TooltipTrigger asChild>
             <button
               onClick={handleVideoExport}
-              disabled={isExporting}
+              disabled={isExporting || !selectedFormat.supported}
               className="p-2 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors ml-1 flex items-center gap-1.5 border border-border text-[10px] font-mono uppercase disabled:opacity-50"
             >
               {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
@@ -369,9 +402,43 @@ const Toolbar: React.FC = () => {
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p className="text-xs">{isExporting ? `Exporting... ${exportProgress}%` : 'Export animation as WebM video'}</p>
+            <p className="text-xs">
+              {isExporting
+                ? `Exporting... ${exportProgress}%`
+                : selectedFormat.supported
+                ? 'Export animation with selected format and resolution'
+                : 'Selected format is not supported by this browser'}
+            </p>
           </TooltipContent>
         </Tooltip>
+
+        <div className="flex items-center gap-1 ml-2">
+          <select
+            value={exportFormatId}
+            onChange={(e) => setExportFormatId(e.target.value)}
+            className="bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground"
+            title="Video export format"
+          >
+            {supportedFormats.map((format) => (
+              <option key={format.id} value={format.id}>
+                {format.label}{format.supported ? '' : ' (unsupported)'}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={exportResolutionId}
+            onChange={(e) => setExportResolutionId(e.target.value)}
+            className="bg-muted border border-border rounded px-1.5 py-1 text-[10px] font-mono text-foreground"
+            title="Video export resolution"
+          >
+            {EXPORT_RESOLUTIONS.map((res) => (
+              <option key={res.id} value={res.id}>
+                {res.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </TooltipProvider>
   );
