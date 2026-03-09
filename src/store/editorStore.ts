@@ -689,6 +689,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
     addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
     removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
 
+    addMapToLibrary: (item) => set((s) => ({ mapLibrary: [...s.mapLibrary, item] })),
+    removeMapFromLibrary: (id) => set((s) => ({ mapLibrary: s.mapLibrary.filter((i) => i.id !== id) })),
+
     // Clipboard
     copySelected: () => {
       const { selectedIds, selectedEffectId } = get();
