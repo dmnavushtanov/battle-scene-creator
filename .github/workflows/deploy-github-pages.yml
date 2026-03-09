@@ -39,6 +39,12 @@ jobs:
       - name: Add .nojekyll
         run: touch dist/.nojekyll
 
+      - name: Verify build output
+        run: |
+          test -f dist/index.html
+          echo "Pages artifact preview:"
+          find dist -maxdepth 2 -type f | head -n 20
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
