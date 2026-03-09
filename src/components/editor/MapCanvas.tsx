@@ -11,6 +11,7 @@ import { UNIT_TYPES, UNIT_CATEGORIES } from './UnitIcon';
 import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
+import { evaluateObjectAtTime } from '@/domain/services/timeline';
 
 // --- Image cache for custom icons AND built-in unit icons ---
 const imageCache = new Map<string, HTMLImageElement>();
@@ -247,17 +248,27 @@ const MapCanvas: React.FC = () => {
     const ct = useEditorStore.getState().currentTime;
     const durMs = recordDurationSeconds * 1000;
     const obj = activeScene.objectsById[unitId];
+    if (!obj) {
+      setPathPoints([]);
+      isDrawingPath.current = false;
+      setActiveTool('select');
+      return;
+    }
+
     const unitStartTime = obj?.startTime ?? 0;
     const pathStartTime = Math.max(ct, unitStartTime);
+    const existingKeyframes = activeScene.keyframesByObjectId[unitId] || [];
+    const evaluatedStart = evaluateObjectAtTime(obj, existingKeyframes, pathStartTime);
+    const waypoints = [{ x: evaluatedStart.x, y: evaluatedStart.y }, ...pathPoints];
 
-    const keyframes = pathPoints.map((pt, i) => ({
-      time: pathStartTime + (i / (pathPoints.length - 1)) * durMs,
+    const keyframes = waypoints.map((pt, i) => ({
+      time: pathStartTime + (i / (waypoints.length - 1)) * durMs,
       x: pt.x,
       y: pt.y,
-      rotation: obj?.rotation || 0,
-      scaleX: obj?.scaleX || 1,
-      scaleY: obj?.scaleY || 1,
-      visible: obj?.visible ?? true,
+      rotation: evaluatedStart.rotation,
+      scaleX: evaluatedStart.scaleX,
+      scaleY: evaluatedStart.scaleY,
+      visible: evaluatedStart.visible,
     }));
     batchAddKeyframes(unitId, keyframes);
 
@@ -659,6 +670,24 @@ const MapCanvas: React.FC = () => {
     return `${pathPoints.length} waypoints for "${unitName}" — Left-click: add, Right-click: save, Esc: cancel · ${durLabel}`;
   };
 
+  const getPathStartAnchor = () => {
+    if (activeTool !== 'path') return null;
+    if (selectedIds.length !== 1) return null;
+
+    const unitId = selectedIds[0];
+    const unit = objectsById[unitId];
+    if (!unit) return null;
+
+    const unitStartTime = unit.startTime ?? 0;
+    const pathStartTime = Math.max(currentTime, unitStartTime);
+    const keyframes = activeScene.keyframesByObjectId[unitId] || [];
+    const start = evaluateObjectAtTime(unit, keyframes, pathStartTime);
+    return { x: start.x, y: start.y };
+  };
+
+  const pathStartAnchor = getPathStartAnchor();
+  const previewPathPoints = pathStartAnchor ? [pathStartAnchor, ...pathPoints] : pathPoints;
+
   // Context menu sub-menu state
   const [contextSubMenu, setContextSubMenu] = useState<string | null>(null);
 
@@ -772,9 +801,13 @@ const MapCanvas: React.FC = () => {
           {drawingArrow && (
             <Arrow points={[drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2]} stroke="#d4a843" strokeWidth={3} dash={[10, 6]} pointerLength={12} pointerWidth={10} fill="#d4a843" opacity={0.6} listening={false} />
           )}
-          {pathPoints.length > 0 && (
+          {pathStartAnchor && (
             <>
-              <Line points={pathPoints.flatMap((p) => [p.x, p.y])} stroke="#00bcd4" strokeWidth={2} dash={[6, 4]} opacity={0.8} listening={false} />
+              {previewPathPoints.length > 1 && (
+                <Line points={previewPathPoints.flatMap((p) => [p.x, p.y])} stroke="#00bcd4" strokeWidth={2} dash={[6, 4]} opacity={0.8} listening={false} />
+              )}
+              <Circle x={pathStartAnchor.x} y={pathStartAnchor.y} radius={6} fill="#1de9b6" stroke="#ffffff" strokeWidth={2} opacity={0.95} listening={false} />
+              <Text x={pathStartAnchor.x + 8} y={pathStartAnchor.y - 16} text="Start" fontSize={10} fill="#1de9b6" listening={false} />
               {pathPoints.map((p, i) => (
                 <Circle key={`pp-${i}`} x={p.x} y={p.y} radius={4} fill="#00bcd4" stroke="#fff" strokeWidth={1} opacity={0.9} listening={false} />
               ))}
