@@ -38,7 +38,7 @@ type Tab = 'units' | 'effects' | 'sounds';
 const AssetLibrary: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('units');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
-    military: true, structure: true, prop: true, terrain: true, custom: true,
+    maps: false, military: true, structure: true, prop: true, terrain: true, custom: true,
   });
   const addObject = useEditorStore((s) => s.addObject);
   const setBackgroundImage = useEditorStore((s) => s.setBackgroundImage);
@@ -238,48 +238,55 @@ const AssetLibrary: React.FC = () => {
       </div>
 
       {activeTab === 'units' && (
-        <>
-          <div className="px-3 py-3 border-b border-border">
-            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Background Map</p>
-            {allMaps.length > 0 && (
-              <div className="grid grid-cols-3 gap-1.5 mb-2">
-                {allMaps.map((m) => (
-                  <div key={m.id} className="relative group">
-                    <button
-                      onClick={() => setBackgroundImage(m.dataUrl)}
-                      className="w-full aspect-video rounded border border-border overflow-hidden hover:border-primary/50 transition-colors"
-                      title={`Use "${m.label}" as background`}
-                    >
-                      <img
-                        src={m.dataUrl}
-                        alt={m.label}
-                        className="w-full h-full object-cover"
-                        onError={() => {
-                          if (m.isBuiltIn) {
-                            setHiddenBuiltInMapIds((prev) => (prev.includes(m.id) ? prev : [...prev, m.id]));
-                          }
-                        }}
-                      />
-                    </button>
-                    {!m.isBuiltIn && (
-                      <button onClick={(e) => { e.stopPropagation(); removeMapFromLibrary(m.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={8} />
-                      </button>
-                    )}
-                    <span className="text-[7px] font-mono text-muted-foreground truncate block text-center mt-0.5">{m.label}</span>
+        <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
+            <Collapsible open={expandedCategories['maps'] ?? false} onOpenChange={() => toggleCategory('maps')}>
+              <CollapsibleTrigger className="w-full flex items-center gap-1.5 py-1.5 mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                {expandedCategories['maps'] ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                <ImageIcon size={10} />
+                <span>Background Maps</span>
+                <span className="text-muted-foreground/40 ml-auto">{allMaps.length}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                {allMaps.length > 0 && (
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    {allMaps.map((m) => (
+                      <div key={m.id} className="relative group">
+                        <button
+                          onClick={() => setBackgroundImage(m.dataUrl)}
+                          className="w-full aspect-video rounded border border-border overflow-hidden hover:border-primary/50 transition-colors"
+                          title={`Use "${m.label}" as background`}
+                        >
+                          <img
+                            src={m.dataUrl}
+                            alt={m.label}
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              if (m.isBuiltIn) {
+                                setHiddenBuiltInMapIds((prev) => (prev.includes(m.id) ? prev : [...prev, m.id]));
+                              }
+                            }}
+                          />
+                        </button>
+                        {!m.isBuiltIn && (
+                          <button onClick={(e) => { e.stopPropagation(); removeMapFromLibrary(m.id); }} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Trash2 size={8} />
+                          </button>
+                        )}
+                        <span className="text-[7px] font-mono text-muted-foreground truncate block text-center mt-0.5">{m.label}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors">
-              Upload Map Image
-            </button>
-            <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">
-              Built-in maps auto-load from `src/assets/maps/`
-            </p>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
-          </div>
-          <div className="px-3 py-3 flex-1 overflow-y-auto scrollbar-tactical">
+                )}
+                <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 px-3 text-xs font-mono bg-muted hover:bg-muted/80 border border-border rounded text-foreground transition-colors">
+                  Upload Map Image
+                </button>
+                <p className="text-[8px] font-mono text-muted-foreground/60 mt-1 text-center">
+                  Built-in maps auto-load from `public/maps/`
+                </p>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleMapUpload} className="hidden" />
+              </CollapsibleContent>
+            </Collapsible>
+
             <p className="text-[8px] font-mono text-muted-foreground/60 mb-2">Click to add or drag onto canvas</p>
 
             {/* Collapsible categories */}
@@ -350,8 +357,7 @@ const AssetLibrary: React.FC = () => {
                 <input ref={iconInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" onChange={handleIconUpload} className="hidden" />
               </CollapsibleContent>
             </Collapsible>
-          </div>
-        </>
+        </div>
       )}
 
       {activeTab === 'effects' && (

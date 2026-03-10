@@ -196,6 +196,102 @@ src/
 
 ---
 
+## AI Maintainer Guide (Mechanics + Editing Rules)
+
+This section explains the behavior contracts behind selection, dragging, groups, timeline playback, recording, and export so future edits do not regress core UX.
+
+### State Model (Authoritative Data)
+
+- Source of truth is `src/store/editorStore.ts` (Zustand).
+- Scene structure:
+  - `objectsById` + `objectOrder`
+  - `keyframesByObjectId`
+  - `effectsByObjectId`
+  - `groups`
+  - narration/overlay/sound arrays
+- Rendering components (especially `MapCanvas.tsx`) read from the active scene plus editor flags (`isPlaying`, `isRecording`, `isVideoExporting`, `currentTime`).
+
+### Core Interaction Mechanics
+
+#### Select tool
+- Click object: single select.
+- Shift+click object: add/remove from selection.
+- Click empty canvas: clear selection.
+- Rectangle selection starts only on empty canvas (stage/background), updates during drag, and finalizes on mouse-up by overlap against object bounds.
+- After marquee finalize, a click-suppression flag prevents immediate deselect caused by post-drag click events.
+
+#### Pan/Zoom
+- Middle mouse drag = pan.
+- Wheel zoom is cursor-centered using stage-space coordinate conversion:
+  - `stage = (screen - stagePosition) / stageScale`
+- Keep all new pointer logic consistent with this conversion.
+
+#### Context menu
+- Right-click object: object menu (group actions, path action for units).
+- Right-click empty canvas: quick-add units/effects menu.
+- In path mode, right-click saves path instead of opening menu.
+
+### Group Mechanics (Important)
+
+- Group membership is exclusive by design:
+  - Creating/adding to a group removes those members from any other group.
+- `Select All` in group UI sets `selectedIds` to all members.
+- Group drag contract:
+  - One selected member is drag lead.
+  - Every other selected member moves by the same delta.
+  - Delta must be per-drag-step, not repeatedly applied from stale origins.
+  - Drag session member IDs are captured at drag start and reused through drag end.
+
+Critical implementation rule:
+- Keep `derivedTransforms` synchronized while dragging (`onObjectDragMove`, `onGroupDragMove`) so later drags do not jump/stack due to stale derived positions.
+
+### Timeline / Derived Transform Mechanics
+
+- Timeline playback/scrubbing computes per-object transforms with `evaluateObjectAtTime(...)`.
+- Results are cached in store as `derivedTransforms`, used by canvas rendering and export frame computation.
+- If object positions are changed interactively, derived transforms for moved objects must be updated as well to keep visual state consistent.
+
+### Recording Mechanics
+
+- Recording session is created with:
+  - `startTime = currentTime`
+  - `durationMs = recordDurationSeconds * 1000`
+- On first drag for an object during recording, its pre-drag snapshot is captured.
+- Stop recording writes:
+  - start keyframe at `startTime` from snapshot
+  - end keyframe at `startTime + durationMs` from final object transform
+- Existing keyframes in the recorded interval are replaced for moved objects.
+
+### Path Tool Mechanics
+
+- Path tool only works with exactly one selected unit.
+- Path start time is `max(currentTime, unit.startTime)` to avoid hidden-unit movement before visibility.
+- Saving a path replaces future keyframes from path start onward.
+- Path duration equals toolbar `recordDurationSeconds`.
+
+### Export Mechanics
+
+- Export uses `canvas.captureStream()` + `MediaRecorder`.
+- Export loop seeks to each frame time and applies evaluated transforms to Konva nodes.
+- After export, restore previous editor time and recompute derived transforms.
+
+### Safe Edit Checklist
+
+When changing selection/drag/group code:
+- Keep empty-canvas hit-testing working on both background rect and background image.
+- Preserve marquee click suppression.
+- Preserve drag lead + delta propagation model.
+- Do not reintroduce stale-derived-position drift between consecutive group drags.
+
+When changing timeline/recording:
+- Preserve replacement semantics for keyframes in overwritten time ranges.
+- Keep `currentTime`, `derivedTransforms`, and rendered node transforms synchronized.
+
+When changing serialization/import:
+- Maintain migration defaults (`groups`, `soundEvents`) for older JSON files.
+
+---
+
 
 ## Deploying to GitHub Pages
 

@@ -160,7 +160,7 @@ export interface EditorState {
   onObjectDragStart: (id: string) => void;
   onObjectDragMove: (id: string, x: number, y: number) => void;
   onObjectDragEnd: (id: string, x: number, y: number) => void;
-  onGroupDragMove: (leadId: string, dx: number, dy: number) => void;
+  onGroupDragMove: (leadId: string, dx: number, dy: number, memberIds?: string[]) => void;
 
   // Zoom
   setStageScale: (scale: number) => void;
@@ -677,32 +677,67 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...s,
         objectsById: { ...s.objectsById, [id]: { ...obj, x, y } },
       }));
+      set((s) => {
+        const prevDerived = s.derivedTransforms[id];
+        return {
+          derivedTransforms: {
+            ...s.derivedTransforms,
+            [id]: {
+              x,
+              y,
+              rotation: prevDerived?.rotation ?? obj.rotation,
+              scaleX: prevDerived?.scaleX ?? obj.scaleX,
+              scaleY: prevDerived?.scaleY ?? obj.scaleY,
+              visible: prevDerived?.visible ?? obj.visible,
+            },
+          },
+        };
+      });
     },
 
     onObjectDragEnd: (id, x, y) => {
       get().onObjectDragMove(id, x, y);
     },
 
-    onGroupDragMove: (leadId, dx, dy) => {
-      const { selectedIds, isRecording, recordingSession } = get();
-      if (!selectedIds.includes(leadId) || selectedIds.length <= 1) return;
-      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+    onGroupDragMove: (leadId, dx, dy, memberIds) => {
+      const { selectedIds, isRecording, recordingSession, derivedTransforms } = get();
+      const activeSelection = memberIds && memberIds.length > 1 ? memberIds : selectedIds;
+      const uniqueSelectedIds = Array.from(new Set(activeSelection));
+      if (!uniqueSelectedIds.includes(leadId) || uniqueSelectedIds.length <= 1) return;
       const scene = get().getActiveScene();
       const updates: Record<string, MapObject> = {};
       for (const sid of uniqueSelectedIds) {
         if (sid === leadId) continue;
         const obj = scene.objectsById[sid];
         if (!obj || obj.locked) continue;
+        const derived = derivedTransforms[sid];
+        const baseX = derived ? derived.x : obj.x;
+        const baseY = derived ? derived.y : obj.y;
         if (isRecording && recordingSession) {
           captureInitialSnapshot(recordingSession, obj);
         }
-        updates[sid] = { ...obj, x: obj.x + dx, y: obj.y + dy };
+        updates[sid] = { ...obj, x: baseX + dx, y: baseY + dy };
       }
       if (Object.keys(updates).length > 0) {
         get()._updateActiveScene((s) => ({
           ...s,
           objectsById: { ...s.objectsById, ...updates },
         }));
+        set((s) => {
+          const nextDerived = { ...s.derivedTransforms };
+          for (const updated of Object.values(updates)) {
+            const prev = nextDerived[updated.id];
+            nextDerived[updated.id] = {
+              x: updated.x,
+              y: updated.y,
+              rotation: prev?.rotation ?? updated.rotation,
+              scaleX: prev?.scaleX ?? updated.scaleX,
+              scaleY: prev?.scaleY ?? updated.scaleY,
+              visible: prev?.visible ?? updated.visible,
+            };
+          }
+          return { derivedTransforms: nextDerived };
+        });
       }
     },
 

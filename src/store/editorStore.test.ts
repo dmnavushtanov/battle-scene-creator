@@ -79,3 +79,63 @@ describe('replaceKeyframesFromTime', () => {
     expect(afterReplacedEnd.x).toBe(150);
   });
 });
+
+describe('onGroupDragMove', () => {
+  beforeEach(() => {
+    useEditorStore.setState({
+      project: makeProject(),
+      activeSceneId: 'scene-1',
+      currentTime: 0,
+      selectedIds: [],
+      derivedTransforms: {},
+    });
+  });
+
+  it('uses derived positions as drag baseline and keeps cumulative movement stable', () => {
+    const leadId = 'lead-1';
+    const memberAId = 'member-a';
+    const memberBId = 'member-b';
+    const makeUnit = (id: string, x: number, y: number): MapObject => ({
+      id,
+      type: 'unit',
+      unitType: 'infantry',
+      x,
+      y,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      layer: 'units',
+      visible: true,
+      locked: false,
+    });
+
+    const store = useEditorStore.getState();
+    store.addObject(makeUnit(leadId, 0, 0));
+    store.addObject(makeUnit(memberAId, 10, 10));
+    store.addObject(makeUnit(memberBId, 20, 20));
+
+    useEditorStore.setState({
+      selectedIds: [leadId, memberAId, memberBId],
+      derivedTransforms: {
+        [memberAId]: { x: 100, y: 100, rotation: 0, scaleX: 1, scaleY: 1, visible: true },
+        [memberBId]: { x: 200, y: 200, rotation: 0, scaleX: 1, scaleY: 1, visible: true },
+      },
+    });
+
+    // First drag step
+    useEditorStore.getState().onGroupDragMove(leadId, 5, 7, [leadId, memberAId, memberBId]);
+    let scene = useEditorStore.getState().getActiveScene();
+    expect(scene.objectsById[memberAId].x).toBe(105);
+    expect(scene.objectsById[memberAId].y).toBe(107);
+    expect(scene.objectsById[memberBId].x).toBe(205);
+    expect(scene.objectsById[memberBId].y).toBe(207);
+
+    // Second drag step should continue from the already moved position, not from stale baseline.
+    useEditorStore.getState().onGroupDragMove(leadId, 5, 7, [leadId, memberAId, memberBId]);
+    scene = useEditorStore.getState().getActiveScene();
+    expect(scene.objectsById[memberAId].x).toBe(110);
+    expect(scene.objectsById[memberAId].y).toBe(114);
+    expect(scene.objectsById[memberBId].x).toBe(210);
+    expect(scene.objectsById[memberBId].y).toBe(214);
+  });
+});
