@@ -5,9 +5,12 @@ import { evaluateObjectAtTime, upsertKeyframe, evaluateEffectsAtTime } from '@/d
 import { createRecordingSession, captureInitialSnapshot, finalizeRecording, type RecordingSession } from '@/domain/services/recording';
 import { exportProject as serializeProject, importProject as deserializeProject } from '@/domain/services/serialization';
 import { GROUP_COLORS } from '@/domain/constants';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('EditorStore');
 
 function createDefaultScene(): Scene {
-  return {
+  const scene: Scene = {
     id: uuid(),
     name: 'Scene 1',
     duration: 10000,
@@ -20,16 +23,20 @@ function createDefaultScene(): Scene {
     soundEvents: [],
     groups: {},
   };
+  logger.info('Created default scene', { id: scene.id });
+  return scene;
 }
 
 function createDefaultProject(): ProjectData {
-  return {
+  const project: ProjectData = {
     version: '1.0',
     name: 'Untitled Battle',
     canvasWidth: 1920,
     canvasHeight: 1080,
     scenes: [createDefaultScene()],
   };
+  logger.info('Created default project');
+  return project;
 }
 
 export interface CustomIcon {
@@ -226,7 +233,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     getActiveScene: () => {
       const { project, activeSceneId } = get();
-      return project.scenes.find((s) => s.id === activeSceneId) || project.scenes[0];
+      const scene = project.scenes.find((s) => s.id === activeSceneId);
+      if (!scene) {
+        logger.warn('Active scene not found, falling back to first scene', { activeSceneId });
+        return project.scenes[0];
+      }
+      return scene;
     },
 
     _updateActiveScene: (updater) => {
@@ -242,6 +254,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     addObject: (obj) => {
+      logger.info('Adding object', { id: obj.id, type: obj.type, label: obj.label });
       get()._updateActiveScene((scene) => ({
         ...scene,
         objectsById: { ...scene.objectsById, [obj.id]: obj },
@@ -250,6 +263,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeObject: (id) => {
+      logger.info('Removing object', { id });
       get()._updateActiveScene((scene) => {
         const { [id]: _, ...rest } = scene.objectsById;
         const { [id]: __, ...kfRest } = scene.keyframesByObjectId;
@@ -258,7 +272,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         for (const [gid, group] of Object.entries(updatedGroups)) {
           if (group.memberIds.includes(id)) {
             updatedGroups[gid] = { ...group, memberIds: group.memberIds.filter((m) => m !== id) };
-            if (updatedGroups[gid].memberIds.length === 0) delete updatedGroups[gid];
+            if (updatedGroups[gid].memberIds.length === 0) {
+              logger.debug('Deleting empty group after object removal', { groupId: gid });
+              delete updatedGroups[gid];
+            }
           }
         }
         return {
@@ -274,9 +291,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateObject: (id, updates) => {
+      logger.debug('Updating object', { id, updates });
       get()._updateActiveScene((scene) => {
         const existing = scene.objectsById[id];
-        if (!existing) return scene;
+        if (!existing) {
+          logger.warn('Tried to update non-existent object', { id });
+          return scene;
+        }
         return {
           ...scene,
           objectsById: { ...scene.objectsById, [id]: { ...existing, ...updates } },
@@ -284,27 +305,48 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
     },
 
-    setSelectedIds: (ids) => set({ selectedIds: ids, selectedNarrationId: null, selectedOverlayId: null }),
-    setActiveTool: (tool) => set({ activeTool: tool }),
-    setActiveLayer: (layer) => set({ activeLayer: layer }),
+    setSelectedIds: (ids) => {
+      logger.debug('Setting selection', { ids });
+      set({ selectedIds: ids, selectedNarrationId: null, selectedOverlayId: null });
+    },
+    setActiveTool: (tool) => {
+      logger.info('Tool changed', { tool });
+      set({ activeTool: tool });
+    },
+    setActiveLayer: (layer) => {
+      logger.info('Layer changed', { layer });
+      set({ activeLayer: layer });
+    },
 
     setCurrentTime: (time) => set({ currentTime: time }),
-    setIsPlaying: (playing) => set({ isPlaying: playing }),
-    setIsVideoExporting: (exporting) => set({ isVideoExporting: exporting }),
+    setIsPlaying: (playing) => {
+      logger.info('Playback toggled', { playing, atTime: get().currentTime });
+      set({ isPlaying: playing });
+    },
+    setIsVideoExporting: (exporting) => {
+      logger.info('Video export toggled', { exporting });
+      set({ isVideoExporting: exporting });
+    },
 
     seekTo: (time) => {
+      logger.debug('Seek to', { time });
       set({ currentTime: time });
       get().computeDerivedTransforms(time);
     },
 
     setBackgroundImage: (url) => {
+      logger.info('Set background image');
       get()._updateActiveScene((scene) => ({ ...scene, backgroundImage: url }));
     },
 
     addKeyframeAtTime: (objectId, time) => {
+      logger.debug('Adding keyframe', { objectId, time });
       const scene = get().getActiveScene();
       const obj = scene.objectsById[objectId];
-      if (!obj) return;
+      if (!obj) {
+        logger.error('Failed to add keyframe: object not found', { objectId });
+        return;
+      }
       const kf: Keyframe = {
         time,
         x: obj.x,
@@ -324,6 +366,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     batchAddKeyframes: (objectId, keyframes) => {
+      logger.debug('Batch adding keyframes', { objectId, count: keyframes.length });
       get()._updateActiveScene((s) => {
         let existing = s.keyframesByObjectId[objectId] || [];
         for (const kf of keyframes) {
@@ -337,6 +380,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     replaceKeyframesFromTime: (objectId, fromTime, newKeyframes) => {
+      logger.info('Replacing keyframes from time', { objectId, fromTime, count: newKeyframes.length });
       get()._updateActiveScene((s) => {
         const existing = s.keyframesByObjectId[objectId] || [];
         const preserved = existing.filter((kf) => kf.time < fromTime);
@@ -349,6 +393,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     clearKeyframes: (objectId) => {
+      logger.info('Clearing keyframes for object', { objectId });
       get()._updateActiveScene((s) => {
         const { [objectId]: _, ...rest } = s.keyframesByObjectId;
         return { ...s, keyframesByObjectId: rest };
@@ -356,10 +401,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     clearAllKeyframes: () => {
+      logger.info('Clearing all keyframes');
       get()._updateActiveScene((s) => ({ ...s, keyframesByObjectId: {} }));
     },
 
     removeKeyframe: (objectId, index) => {
+      logger.info('Removing keyframe', { objectId, index });
       get()._updateActiveScene((s) => {
         const kfs = s.keyframesByObjectId[objectId] || [];
         const updated = kfs.filter((_, i) => i !== index);
@@ -373,6 +420,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateKeyframe: (objectId, index, updates) => {
+      logger.debug('Updating keyframe', { objectId, index, updates });
       get()._updateActiveScene((s) => {
         const kfs = [...(s.keyframesByObjectId[objectId] || [])];
         if (index < 0 || index >= kfs.length) return s;
@@ -387,6 +435,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     // Effects CRUD
     addEffect: (objectId, effect) => {
+      logger.info('Adding effect', { objectId, effectType: effect.type });
       get()._updateActiveScene((s) => ({
         ...s,
         effectsByObjectId: {
@@ -397,6 +446,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeEffect: (objectId, effectId) => {
+      logger.info('Removing effect', { objectId, effectId });
       get()._updateActiveScene((s) => ({
         ...s,
         effectsByObjectId: {
@@ -407,6 +457,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     clearEffects: (objectId) => {
+      logger.info('Clearing effects for object', { objectId });
       get()._updateActiveScene((s) => {
         const { [objectId]: _, ...rest } = s.effectsByObjectId;
         return { ...s, effectsByObjectId: rest };
@@ -414,6 +465,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateEffect: (objectId, effectId, updates) => {
+      logger.debug('Updating effect', { objectId, effectId, updates });
       get()._updateActiveScene((s) => ({
         ...s,
         effectsByObjectId: {
@@ -427,6 +479,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     // Narration CRUD
     addNarration: (event) => {
+      logger.info('Adding narration', { id: event.id });
       get()._updateActiveScene((s) => ({
         ...s,
         narrationEvents: [...s.narrationEvents, event],
@@ -435,6 +488,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateNarration: (id, updates) => {
+      logger.debug('Updating narration', { id, updates });
       get()._updateActiveScene((s) => ({
         ...s,
         narrationEvents: s.narrationEvents.map((n) =>
@@ -444,6 +498,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeNarration: (id) => {
+      logger.info('Removing narration', { id });
       get()._updateActiveScene((s) => ({
         ...s,
         narrationEvents: s.narrationEvents.filter((n) => n.id !== id),
@@ -455,6 +510,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     // Overlay CRUD
     addOverlay: (event) => {
+      logger.info('Adding overlay', { id: event.id });
       get()._updateActiveScene((s) => ({
         ...s,
         overlayEvents: [...s.overlayEvents, event],
@@ -463,6 +519,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateOverlay: (id, updates) => {
+      logger.debug('Updating overlay', { id, updates });
       get()._updateActiveScene((s) => ({
         ...s,
         overlayEvents: s.overlayEvents.map((o) =>
@@ -472,6 +529,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeOverlay: (id) => {
+      logger.info('Removing overlay', { id });
       get()._updateActiveScene((s) => ({
         ...s,
         overlayEvents: s.overlayEvents.filter((o) => o.id !== id),
@@ -483,6 +541,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     // Sounds CRUD
     addSound: (event) => {
+      logger.info('Adding sound', { id: event.id });
       get()._updateActiveScene((s) => ({
         ...s,
         soundEvents: [...(s.soundEvents || []), event],
@@ -490,6 +549,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateSound: (id, updates) => {
+      logger.debug('Updating sound', { id, updates });
       get()._updateActiveScene((s) => ({
         ...s,
         soundEvents: (s.soundEvents || []).map((snd) =>
@@ -499,6 +559,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeSound: (id) => {
+      logger.info('Removing sound', { id });
       get()._updateActiveScene((s) => ({
         ...s,
         soundEvents: (s.soundEvents || []).filter((snd) => snd.id !== id),
@@ -507,6 +568,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     // Groups
     createGroup: (name, memberIds) => {
+      logger.info('Creating group', { name, memberCount: memberIds.length });
       const scene = get().getActiveScene();
       const groupCount = Object.keys(scene.groups).length;
       const color = GROUP_COLORS[groupCount % GROUP_COLORS.length];
@@ -529,6 +591,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     renameGroup: (groupId, name) => {
+      logger.debug('Renaming group', { groupId, name });
       get()._updateActiveScene((s) => ({
         ...s,
         groups: {
@@ -539,6 +602,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     deleteGroup: (groupId) => {
+      logger.info('Deleting group', { groupId });
       get()._updateActiveScene((s) => {
         const { [groupId]: _, ...rest } = s.groups;
         return { ...s, groups: rest };
@@ -546,9 +610,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     addToGroup: (groupId, objectIds) => {
+      logger.info('Adding to group', { groupId, objectCount: objectIds.length });
       get()._updateActiveScene((s) => {
         const group = s.groups[groupId];
-        if (!group) return s;
+        if (!group) {
+          logger.error('Failed to add to group: group not found', { groupId });
+          return s;
+        }
         const incoming = Array.from(new Set(objectIds));
         const updatedGroups: Record<string, UnitGroup> = {};
 
@@ -571,6 +639,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     removeFromGroup: (groupId, objectIds) => {
+      logger.info('Removing from group', { groupId, objectCount: objectIds.length });
       get()._updateActiveScene((s) => {
         const group = s.groups[groupId];
         if (!group) return s;
@@ -595,20 +664,31 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     selectGroup: (groupId) => {
+      logger.info('Selecting group', { groupId });
       const scene = get().getActiveScene();
       const group = scene.groups[groupId];
       if (group) set({ selectedIds: [...group.memberIds], selectedNarrationId: null, selectedOverlayId: null });
     },
 
-    setRecordDurationSeconds: (dur) => set({ recordDurationSeconds: dur }),
+    setRecordDurationSeconds: (dur) => {
+      logger.debug('Setting recording duration', { seconds: dur });
+      set({ recordDurationSeconds: dur });
+    },
 
     startRecording: () => {
+      if (get().isRecording) {
+        logger.warn('Tried to start recording while already recording');
+        return;
+      }
       const { currentTime, recordDurationSeconds, derivedTransforms } = get();
       const durationMs = recordDurationSeconds * 1000;
       const endTime = currentTime + durationMs;
 
+      logger.info('Starting recording session', { startTime: currentTime, durationMs });
+
       const scene = get().getActiveScene();
       if (endTime > scene.duration) {
+        logger.debug('Extending scene duration for recording', { oldDuration: scene.duration, newDuration: endTime });
         get()._updateActiveScene((s) => ({ ...s, duration: Math.ceil(endTime / 1000) * 1000 }));
       }
 
@@ -633,9 +713,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
     stopRecording: () => {
       const { recordingSession } = get();
       if (!recordingSession) {
+        logger.warn('Tried to stop recording but no session found');
         set({ isRecording: false, recordingSession: null });
         return;
       }
+      logger.info('Stopping recording session', { startTime: recordingSession.startTime });
       const scene = get().getActiveScene();
       const updatedKeyframes = finalizeRecording(
         recordingSession,
@@ -657,6 +739,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const scene = get().getActiveScene();
       const obj = scene.objectsById[id];
       if (!obj) return;
+      logger.debug('Recording drag start', { id });
       captureInitialSnapshot(recordingSession, obj);
       const { selectedIds } = get();
       if (selectedIds.includes(id) && selectedIds.length > 1) {
@@ -744,8 +827,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setStageScale: (scale) => set({ stageScale: scale }),
     setStagePosition: (pos) => set({ stagePosition: pos }),
 
-    setActiveSceneId: (id) => set({ activeSceneId: id }),
+    setActiveSceneId: (id) => {
+      logger.info('Switching scene', { id });
+      set({ activeSceneId: id });
+    },
     setSceneDuration: (ms) => {
+      logger.info('Setting scene duration', { ms });
       get()._updateActiveScene((s) => ({ ...s, duration: ms }));
     },
 
@@ -777,14 +864,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ derivedTransforms: transforms, derivedEffects: effects, activeNarrations, activeOverlay });
     },
 
-    addCustomIcon: (icon) => set((s) => ({ customIcons: [...s.customIcons, icon] })),
-    removeCustomIcon: (id) => set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) })),
+    addCustomIcon: (icon) => {
+      logger.info('Adding custom icon', { id: icon.id, label: icon.label });
+      set((s) => ({ customIcons: [...s.customIcons, icon] }));
+    },
+    removeCustomIcon: (id) => {
+      logger.info('Removing custom icon', { id });
+      set((s) => ({ customIcons: s.customIcons.filter((i) => i.id !== id) }));
+    },
 
     addMapToLibrary: (item) => set((s) => ({ mapLibrary: [...s.mapLibrary, item] })),
     removeMapFromLibrary: (id) => set((s) => ({ mapLibrary: s.mapLibrary.filter((i) => i.id !== id) })),
 
-    addCustomEffect: (effect) => set((s) => ({ customEffects: [...s.customEffects, effect] })),
-    removeCustomEffect: (id) => set((s) => ({ customEffects: s.customEffects.filter((i) => i.id !== id) })),
+    addCustomEffect: (effect) => {
+      logger.info('Adding custom effect', { id: effect.id, label: effect.label });
+      set((s) => ({ customEffects: [...s.customEffects, effect] }));
+    },
+    removeCustomEffect: (id) => {
+      logger.info('Removing custom effect', { id });
+      set((s) => ({ customEffects: s.customEffects.filter((i) => i.id !== id) }));
+    },
 
     // Clipboard
     copySelected: () => {
@@ -796,6 +895,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const effs = scene.effectsByObjectId[selectedEffectId.objectId] || [];
         const eff = effs.find((e) => e.id === selectedEffectId.effectId);
         if (eff) {
+          logger.info('Copied effect to clipboard', { effectId: eff.id });
           set({ clipboard: { type: 'effect', effect: { ...eff } } });
         }
         return;
@@ -805,6 +905,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       if (selectedIds.length === 1) {
         const obj = scene.objectsById[selectedIds[0]];
         if (!obj) return;
+        logger.info('Copied unit to clipboard', { objectId: obj.id });
         const kfs = scene.keyframesByObjectId[obj.id] || [];
         const effs = scene.effectsByObjectId[obj.id] || [];
         set({
@@ -820,11 +921,15 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     pasteClipboard: () => {
       const { clipboard, selectedIds, currentTime } = get();
-      if (!clipboard) return;
+      if (!clipboard) {
+        logger.warn('Tried to paste but clipboard is empty');
+        return;
+      }
       const scene = get().getActiveScene();
 
       if (clipboard.type === 'unit' && clipboard.object) {
         const newId = uuid();
+        logger.info('Pasting unit from clipboard', { originalId: clipboard.object.id, newId });
         const newObj: MapObject = {
           ...clipboard.object,
           id: newId,
@@ -851,16 +956,24 @@ export const useEditorStore = create<EditorState>((set, get) => {
       if (clipboard.type === 'effect' && clipboard.effect) {
         // Paste effect onto selected unit
         const targetId = selectedIds[0];
-        if (!targetId) return;
+        if (!targetId) {
+          logger.warn('Tried to paste effect but no unit selected');
+          return;
+        }
         const obj = scene.objectsById[targetId];
         if (!obj) return;
+        logger.info('Pasting effect onto unit', { targetId, effectType: clipboard.effect.type });
         get().addEffect(targetId, { ...clipboard.effect, id: uuid(), startTime: currentTime });
       }
     },
 
-    exportProject: () => serializeProject(get().project),
+    exportProject: () => {
+      logger.info('Exporting project JSON');
+      return serializeProject(get().project);
+    },
 
     importProject: (json) => {
+      logger.info('Importing project JSON');
       try {
         const data = deserializeProject(json);
         data.scenes = data.scenes.map((s) => ({ ...s, groups: s.groups || {}, soundEvents: s.soundEvents || [] }));
@@ -880,8 +993,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
           selectedOverlayId: null,
           selectedKeyframeIndex: null,
         });
+        logger.info('Import successful', { sceneCount: data.scenes.length });
       } catch (e) {
-        console.error('Invalid project JSON', e);
+        logger.error('Failed to import project', e);
       }
     },
   };

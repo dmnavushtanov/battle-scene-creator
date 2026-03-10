@@ -13,7 +13,12 @@ import { UNIT_ICON_URLS } from '@/assets/icons';
 import { v4 as uuid } from 'uuid';
 import { Route } from 'lucide-react';
 import { evaluateObjectAtTime } from '@/domain/services/timeline';
-import { toast } from '@/hooks/use-toast';
+import { usePanZoom } from '@/hooks/usePanZoom';
+import { useMarqueeSelection } from '@/hooks/useMarqueeSelection';
+import { usePathDrawing } from '@/hooks/usePathDrawing';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('MapCanvas');
 
 // --- Image cache for custom icons AND built-in unit icons ---
 const imageCache = new Map<string, HTMLImageElement>();
@@ -75,7 +80,6 @@ function isVideoDataUrl(url: string | undefined): boolean {
   return Boolean(url && url.startsWith('data:video/'));
 }
 
-type MarqueeRect = { x1: number; y1: number; x2: number; y2: number };
 type GroupDragState = {
   leadId: string;
   leadStart: { x: number; y: number };
@@ -90,24 +94,12 @@ const MapCanvas: React.FC = () => {
   const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   const groupDragState = useRef<GroupDragState | null>(null);
   const activeDragLeadId = useRef<string | null>(null);
-  const isPanning = useRef(false);
-  const panStart = useRef<{ x: number; y: number; stageX: number; stageY: number } | null>(null);
-  const panTargetPos = useRef<{ x: number; y: number } | null>(null);
-  const panRafRef = useRef<number | null>(null);
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string | null } | null>(null);
   const isDrawingArrow = useRef(false);
   const [drawingArrow, setDrawingArrow] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const [pathPoints, setPathPoints] = useState<{ x: number; y: number }[]>([]);
-  const isDrawingPath = useRef(false);
-  const [selectionRect, setSelectionRect] = useState<MarqueeRect | null>(null);
-  const selectionRectRef = useRef<MarqueeRect | null>(null);
-  const isMarqueeSelecting = useRef(false);
-  const ignoreNextStageClick = useRef(false);
 
-  const activeScene = useEditorStore((s) => {
-    const scene = s.project.scenes.find((sc) => sc.id === s.activeSceneId);
-    return scene || s.project.scenes[0];
-  });
+  const activeScene = useEditorStore((s) => s.getActiveScene());
   const selectedIds = useEditorStore((s) => s.selectedIds);
   const activeTool = useEditorStore((s) => s.activeTool);
   const stageScale = useEditorStore((s) => s.stageScale);
@@ -121,7 +113,6 @@ const MapCanvas: React.FC = () => {
   const customEffects = useEditorStore((s) => s.customEffects);
 
   const setSelectedIds = useEditorStore((s) => s.setSelectedIds);
-  const updateObject = useEditorStore((s) => s.updateObject);
   const onObjectDragStart = useEditorStore((s) => s.onObjectDragStart);
   const onObjectDragMove = useEditorStore((s) => s.onObjectDragMove);
   const onObjectDragEnd = useEditorStore((s) => s.onObjectDragEnd);
@@ -136,6 +127,7 @@ const MapCanvas: React.FC = () => {
   const setActiveTool = useEditorStore((s) => s.setActiveTool);
   const copySelected = useEditorStore((s) => s.copySelected);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
+  const setSceneDuration = useEditorStore((s) => s.setSceneDuration);
 
   const objectsById = activeScene.objectsById;
   const objectOrder = activeScene.objectOrder;
@@ -143,470 +135,23 @@ const MapCanvas: React.FC = () => {
   const groups = activeScene.groups || {};
   const isExportRender = isVideoExporting;
 
-  useEffect(() => { window.__konvaStageRef = stageRef; }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (containerRef.current) setDims({ width: containerRef.current.offsetWidth, height: containerRef.current.offsetHeight });
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => () => {
-    if (panRafRef.current) {
-      cancelAnimationFrame(panRafRef.current);
-      panRafRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!backgroundImage) { setBgImage(null); return; }
-    const img = new window.Image();
-    img.src = backgroundImage;
-    img.onload = () => setBgImage(img);
-  }, [backgroundImage]);
-
-  useEffect(() => {
-    const handler = () => setContextMenu(null);
-    window.addEventListener('click', handler);
-    return () => window.removeEventListener('click', handler);
-  }, []);
-
-  // Global keyboard handler: Escape, Ctrl+C, Ctrl+V
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Copy
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        e.preventDefault();
-        copySelected();
-        return;
-      }
-      // Paste
-      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        e.preventDefault();
-        pasteClipboard();
-        return;
-      }
-
-      // Delete / Backspace — delete selected objects immediately
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Don't intercept if user is typing in an input/textarea
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        const sids = useEditorStore.getState().selectedIds;
-        if (sids.length > 0) {
-          e.preventDefault();
-          const removeObject = useEditorStore.getState().removeObject;
-          sids.forEach((id) => removeObject(id));
-          useEditorStore.setState({ selectedIds: [] });
-        }
-        return;
-      }
-
-      // Space — toggle play/pause
-      if (e.key === ' ') {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
-        e.preventDefault();
-        const { isPlaying, setIsPlaying } = useEditorStore.getState();
-        setIsPlaying(!isPlaying);
-        return;
-      }
-
-      if (e.key !== 'Escape') return;
-
-      // If drawing a path, cancel it
-      if (isDrawingPath.current || pathPoints.length > 0) {
-        setPathPoints([]);
-        isDrawingPath.current = false;
-        setActiveTool('select');
-        return;
-      }
-
-      // Otherwise deselect everything
-      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pathPoints.length, setActiveTool, copySelected, pasteClipboard]);
-
-  const handleWheel = useCallback(
-    (e: Konva.KonvaEventObject<WheelEvent>) => {
-      e.evt.preventDefault();
-      const stage = stageRef.current;
-      if (!stage) return;
-      const oldScale = stageScale;
-      const pointer = stage.getPointerPosition()!;
-      // Continuous wheel zoom feels smoother than fixed step multipliers.
-      const zoomFactor = Math.exp(-e.evt.deltaY * 0.0015);
-      const newScale = oldScale * zoomFactor;
-      const clampedScale = Math.max(0.1, Math.min(5, newScale));
-      const mousePointTo = {
-        x: (pointer.x - stagePosition.x) / oldScale,
-        y: (pointer.y - stagePosition.y) / oldScale,
-      };
-      setStageScale(clampedScale);
-      setStagePosition({ x: pointer.x - mousePointTo.x * clampedScale, y: pointer.y - mousePointTo.y * clampedScale });
-    },
-    [stageScale, stagePosition, setStageScale, setStagePosition]
-  );
-
-  const getStageCoords = (pointer: { x: number; y: number }) => ({
+  const getStageCoords = useCallback((pointer: { x: number; y: number }) => ({
     x: (pointer.x - stagePosition.x) / stageScale,
     y: (pointer.y - stagePosition.y) / stageScale,
-  });
+  }), [stagePosition, stageScale]);
 
-  const isCanvasBackgroundTarget = (target: Konva.Node | null) => {
+  const isCanvasBackgroundTarget = useCallback((target: Konva.Node | null) => {
     const stage = stageRef.current;
     if (!target || !stage) return false;
     const targetId = (target as Konva.Node & { attrs?: { id?: string } }).attrs?.id;
     return target === stage || targetId === 'bg-rect' || targetId === 'bg-image';
-  };
+  }, []);
 
-  /** Save the current path as keyframes for the selected unit */
-  const finalizePath = () => {
-    if (pathPoints.length < 2) {
-      return;
-    }
+  const getObjectTransform = useCallback((id: string) => {
+    return derivedTransforms[id] || null;
+  }, [derivedTransforms]);
 
-    const sids = useEditorStore.getState().selectedIds;
-    if (sids.length !== 1) {
-      setPathPoints([]);
-      isDrawingPath.current = false;
-      setActiveTool('select');
-      return;
-    }
-
-    const unitId = sids[0];
-    const ct = useEditorStore.getState().currentTime;
-    const durMs = recordDurationSeconds * 1000;
-    const obj = activeScene.objectsById[unitId];
-    if (!obj) {
-      setPathPoints([]);
-      isDrawingPath.current = false;
-      setActiveTool('select');
-      return;
-    }
-
-    const unitStartTime = obj?.startTime ?? 0;
-    const pathStartTime = Math.max(ct, unitStartTime);
-    const existingKeyframes = activeScene.keyframesByObjectId[unitId] || [];
-    const hasOverwrittenFutureKeyframes = existingKeyframes.some((kf) => kf.time >= pathStartTime);
-    const evaluatedStart = evaluateObjectAtTime(obj, existingKeyframes, pathStartTime);
-    const waypoints = [{ x: evaluatedStart.x, y: evaluatedStart.y }, ...pathPoints];
-
-    const keyframes = waypoints.map((pt, i) => ({
-      time: pathStartTime + (i / (waypoints.length - 1)) * durMs,
-      x: pt.x,
-      y: pt.y,
-      rotation: evaluatedStart.rotation,
-      scaleX: evaluatedStart.scaleX,
-      scaleY: evaluatedStart.scaleY,
-      visible: evaluatedStart.visible,
-    }));
-    replaceKeyframesFromTime(unitId, pathStartTime, keyframes);
-
-    if (hasOverwrittenFutureKeyframes) {
-      toast({
-        title: 'Path saved',
-        description: 'Replaced future movement from this point.',
-      });
-    }
-
-    const endTime = pathStartTime + durMs;
-    if (endTime > activeScene.duration) {
-      useEditorStore.getState().setSceneDuration(Math.ceil(endTime / 1000) * 1000);
-    }
-
-    setPathPoints([]);
-    isDrawingPath.current = false;
-    setActiveTool('select');
-  };
-
-  const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (e.evt.button === 1) {
-      e.evt.preventDefault();
-      isPanning.current = true;
-      const stage = stageRef.current;
-      if (stage) {
-        const pointer = stage.getPointerPosition()!;
-        panStart.current = { x: pointer.x, y: pointer.y, stageX: stagePosition.x, stageY: stagePosition.y };
-        stage.container().style.cursor = 'grabbing';
-      }
-    }
-    if (e.evt.button === 0 && (activeTool === 'arrow' || activeTool === 'animated_arrow')) {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const coords = getStageCoords(stage.getPointerPosition()!);
-      isDrawingArrow.current = true;
-      setDrawingArrow({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
-    }
-    // Marquee selection: start on left-click on empty canvas in select mode
-    if (e.evt.button === 0 && activeTool === 'select' && !isPlaying) {
-      const target = e.target;
-      const stage = stageRef.current;
-      if (isCanvasBackgroundTarget(target) && stage) {
-        const coords = getStageCoords(stage.getPointerPosition()!);
-        const nextRect = { x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y };
-        isMarqueeSelecting.current = true;
-        selectionRectRef.current = nextRect;
-        setSelectionRect(nextRect);
-      }
-    }
-  };
-
-  const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isPanning.current && panStart.current) {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const pointer = stage.getPointerPosition()!;
-      panTargetPos.current = {
-        x: panStart.current.stageX + pointer.x - panStart.current.x,
-        y: panStart.current.stageY + pointer.y - panStart.current.y,
-      };
-      if (!panRafRef.current) {
-        panRafRef.current = requestAnimationFrame(() => {
-          if (panTargetPos.current) {
-            setStagePosition(panTargetPos.current);
-          }
-          panRafRef.current = null;
-        });
-      }
-    }
-    if (isDrawingArrow.current && drawingArrow) {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const coords = getStageCoords(stage.getPointerPosition()!);
-      setDrawingArrow({ ...drawingArrow, x2: coords.x, y2: coords.y });
-    }
-    // Marquee selection: update rect
-    if (isMarqueeSelecting.current && selectionRectRef.current) {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const coords = getStageCoords(stage.getPointerPosition()!);
-      const nextRect = { ...selectionRectRef.current, x2: coords.x, y2: coords.y };
-      selectionRectRef.current = nextRect;
-      setSelectionRect(nextRect);
-    }
-  };
-
-  const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isPanning.current) {
-      isPanning.current = false;
-      panStart.current = null;
-      const stage = stageRef.current;
-      if (stage) stage.container().style.cursor = 'default';
-    }
-    if (isDrawingArrow.current && drawingArrow) {
-      isDrawingArrow.current = false;
-      const dx = drawingArrow.x2 - drawingArrow.x1;
-      const dy = drawingArrow.y2 - drawingArrow.y1;
-      if (Math.sqrt(dx * dx + dy * dy) > 10) {
-        const isAnimated = activeTool === 'animated_arrow';
-        const ct = useEditorStore.getState().currentTime;
-        const durMs = recordDurationSeconds * 1000;
-        const obj: MapObject = {
-          id: uuid(), type: isAnimated ? 'animated_arrow' : 'drawing',
-          drawTool: isAnimated ? undefined : 'arrow', x: 0, y: 0,
-          points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
-          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false,
-          color: '#d4a843',
-          ...(isAnimated ? { animStartTime: ct, animEndTime: ct + durMs } : {}),
-        };
-        addObject(obj);
-        setSelectedIds([obj.id]);
-      }
-      setDrawingArrow(null);
-    }
-    // Marquee selection: finalize
-    const finalSelectionRect = selectionRectRef.current;
-    if (isMarqueeSelecting.current && finalSelectionRect) {
-      isMarqueeSelecting.current = false;
-      const minX = Math.min(finalSelectionRect.x1, finalSelectionRect.x2);
-      const maxX = Math.max(finalSelectionRect.x1, finalSelectionRect.x2);
-      const minY = Math.min(finalSelectionRect.y1, finalSelectionRect.y2);
-      const maxY = Math.max(finalSelectionRect.y1, finalSelectionRect.y2);
-      // Only select if dragged at least 5px
-      if (maxX - minX > 5 || maxY - minY > 5) {
-        const matchingIds = objectOrder.filter((id) => {
-          const obj = objectsById[id];
-          if (!obj) return false;
-          const bounds = getSelectionBounds(obj, id);
-          return bounds.maxX >= minX && bounds.minX <= maxX && bounds.maxY >= minY && bounds.minY <= maxY;
-        });
-        setSelectedIds(matchingIds);
-        ignoreNextStageClick.current = true;
-      }
-      selectionRectRef.current = null;
-      setSelectionRect(null);
-    }
-  };
-
-  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (ignoreNextStageClick.current) {
-      ignoreNextStageClick.current = false;
-      return;
-    }
-    if (e.evt.button !== 0 || isPanning.current) return;
-
-    // Text tool — click to place a text label
-    if (activeTool === 'text') {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const coords = getStageCoords(stage.getPointerPosition()!);
-      const obj: MapObject = {
-        id: uuid(), type: 'map_text', label: 'Text',
-        x: coords.x, y: coords.y, rotation: 0, scaleX: 1, scaleY: 1,
-        layer: 'units', visible: true, locked: false,
-        text: 'City Name', fontSize: 20, fontColor: '#ffffff',
-      };
-      addObject(obj);
-      setSelectedIds([obj.id]);
-      setActiveTool('select');
-      return;
-    }
-
-    // Left-click adds waypoint when in path mode
-    if (activeTool === 'path') {
-      const stage = stageRef.current;
-      if (!stage) return;
-
-      // Must have exactly 1 unit selected
-      const sids = useEditorStore.getState().selectedIds;
-      if (sids.length !== 1) return;
-
-      const coords = getStageCoords(stage.getPointerPosition()!);
-      isDrawingPath.current = true;
-      setPathPoints((prev) => [...prev, coords]);
-      return;
-    }
-
-    // Click on empty space deselects
-    const target = e.target;
-    if (isCanvasBackgroundTarget(target)) {
-      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
-      setContextMenu(null);
-    }
-  };
-
-  // Right-click on stage: finalize path if drawing, or show add menu on empty space
-  const handleStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    e.evt.preventDefault();
-    if (activeTool === 'path') {
-      if (pathPoints.length >= 2) {
-        finalizePath();
-      }
-      return;
-    }
-
-    // Show context menu on empty space
-    const target = e.target;
-    const container = containerRef.current;
-    if (isCanvasBackgroundTarget(target) && container) {
-      const rect = container.getBoundingClientRect();
-      setContextMenu({ x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top, objectId: null });
-    }
-  };
-
-  const handleAddUnitAtCursor = (unitType: UnitType) => {
-    if (!contextMenu) return;
-    const cx = (contextMenu.x - stagePosition.x) / stageScale;
-    const cy = (contextMenu.y - stagePosition.y) / stageScale;
-    const category = getUnitCategory(unitType);
-    const obj: MapObject = {
-      id: uuid(), type: 'unit', unitType, objectCategory: category as ObjectCategory,
-      label: getUnitDisplayLabel(unitType), x: cx, y: cy,
-      rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
-      visible: true, locked: false, width: 50, height: 50,
-    };
-    addObject(obj);
-    setActiveTool('select');
-    setSelectedIds([obj.id]);
-    setContextMenu(null);
-  };
-
-  const handleAddEffectAtCursor = (presetIndex: number) => {
-    if (!contextMenu) return;
-    const cx = (contextMenu.x - stagePosition.x) / stageScale;
-    const cy = (contextMenu.y - stagePosition.y) / stageScale;
-    const preset = EFFECT_PRESETS[presetIndex];
-    if (!preset) return;
-    const obj: MapObject = {
-      id: uuid(), type: 'effect', effectType: preset.type, label: preset.label,
-      x: cx, y: cy, rotation: 0, scaleX: 1, scaleY: 1,
-      layer: 'effects', visible: true, locked: false, width: 60, height: 60,
-    };
-    addObject(obj);
-    const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
-    addEffect(obj.id, effect);
-    setSelectedIds([obj.id]);
-    setContextMenu(null);
-  };
-
-  const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-    activeDragLeadId.current = id;
-    const selectedAtStart = useEditorStore.getState().selectedIds;
-    if (selectedAtStart.includes(id) && selectedAtStart.length > 1) {
-      groupDragState.current = {
-        leadId: id,
-        leadStart: { x: e.target.x(), y: e.target.y() },
-        memberIds: Array.from(new Set(selectedAtStart)),
-        appliedDelta: { x: 0, y: 0 },
-      };
-    } else {
-      groupDragState.current = null;
-    }
-    onObjectDragStart(id);
-  };
-
-  const handleDragMove = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
-      return;
-    }
-    const x = e.target.x(), y = e.target.y();
-    onObjectDragMove(id, x, y);
-    const dragSession = groupDragState.current;
-    if (dragSession && dragSession.leadId === id && dragSession.memberIds.length > 1) {
-      const totalDx = x - dragSession.leadStart.x;
-      const totalDy = y - dragSession.leadStart.y;
-      const stepDx = totalDx - dragSession.appliedDelta.x;
-      const stepDy = totalDy - dragSession.appliedDelta.y;
-      if (Math.abs(stepDx) > 0.0001 || Math.abs(stepDy) > 0.0001) {
-        onGroupDragMove(id, stepDx, stepDy, dragSession.memberIds);
-        dragSession.appliedDelta = { x: totalDx, y: totalDy };
-      }
-    }
-  };
-
-  const handleDragEnd = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
-      return;
-    }
-    const x = e.target.x();
-    const y = e.target.y();
-    const dragSession = groupDragState.current;
-    if (dragSession && dragSession.leadId === id && dragSession.memberIds.length > 1) {
-      const totalDx = x - dragSession.leadStart.x;
-      const totalDy = y - dragSession.leadStart.y;
-      const stepDx = totalDx - dragSession.appliedDelta.x;
-      const stepDy = totalDy - dragSession.appliedDelta.y;
-      if (Math.abs(stepDx) > 0.0001 || Math.abs(stepDy) > 0.0001) {
-        onGroupDragMove(id, stepDx, stepDy, dragSession.memberIds);
-      }
-    }
-    onObjectDragEnd(id, x, y);
-    groupDragState.current = null;
-    activeDragLeadId.current = null;
-  };
-
-  const getObjectTransform = (id: string) => {
-    if (derivedTransforms[id]) return derivedTransforms[id];
-    return null;
-  };
-
-  const getSelectionBounds = (obj: MapObject, id: string) => {
+  const getSelectionBounds = useCallback((obj: MapObject, id: string) => {
     const derived = getObjectTransform(id);
     const ox = derived ? derived.x : obj.x;
     const oy = derived ? derived.y : obj.y;
@@ -650,6 +195,290 @@ const MapCanvas: React.FC = () => {
       maxX: ox + width / 2,
       maxY: oy + height / 2,
     };
+  }, [getObjectTransform]);
+
+  const panZoom = usePanZoom({ stageScale, stagePosition, setStageScale, setStagePosition, stageRef });
+  const marquee = useMarqueeSelection({ activeTool, isPlaying, objectOrder, objectsById, setSelectedIds, getStageCoords, getSelectionBounds, isCanvasBackgroundTarget, stageRef });
+  const pathDrawing = usePathDrawing({
+    activeTool, activeScene, recordDurationSeconds, currentTime, selectedIds, addObject, setSelectedIds, setActiveTool, replaceKeyframesFromTime, setSceneDuration, getStageCoords, stageRef
+  });
+
+  useEffect(() => { window.__konvaStageRef = stageRef; }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current) setDims({ width: containerRef.current.offsetWidth, height: containerRef.current.offsetHeight });
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!backgroundImage) { setBgImage(null); return; }
+    const img = new window.Image();
+    img.src = backgroundImage;
+    img.onload = () => setBgImage(img);
+  }, [backgroundImage]);
+
+  useEffect(() => {
+    const handler = () => setContextMenu(null);
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, []);
+
+  // Global keyboard handler: Escape, Ctrl+C, Ctrl+V
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      // Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+
+      // Delete / Backspace — delete selected objects immediately
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        const sids = useEditorStore.getState().selectedIds;
+        if (sids.length > 0) {
+          e.preventDefault();
+          logger.info('Deleting selected objects via keyboard', { count: sids.length });
+          const removeObject = useEditorStore.getState().removeObject;
+          sids.forEach((id) => removeObject(id));
+          useEditorStore.setState({ selectedIds: [] });
+        }
+        return;
+      }
+
+      // Space — toggle play/pause
+      if (e.key === ' ') {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+        e.preventDefault();
+        const { isPlaying, setIsPlaying } = useEditorStore.getState();
+        setIsPlaying(!isPlaying);
+        return;
+      }
+
+      if (e.key !== 'Escape') return;
+
+      if (pathDrawing.isDrawingPath || pathDrawing.pathPoints.length > 0) {
+        pathDrawing.cancelPath();
+        return;
+      }
+
+      logger.info('Deselecting all via Escape');
+      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pathDrawing, copySelected, pasteClipboard]);
+
+  const handleStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    panZoom.handleMouseDown(e);
+    marquee.handleMouseDown(e);
+
+    if (e.evt.button === 0 && (activeTool === 'arrow' || activeTool === 'animated_arrow')) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      isDrawingArrow.current = true;
+      setDrawingArrow({ x1: coords.x, y1: coords.y, x2: coords.x, y2: coords.y });
+      logger.debug('Arrow drawing started', coords);
+    }
+  };
+
+  const handleStageMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    panZoom.handleMouseMove(e);
+    marquee.handleMouseMove(e);
+
+    if (isDrawingArrow.current && drawingArrow) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      setDrawingArrow({ ...drawingArrow, x2: coords.x, y2: coords.y });
+    }
+  };
+
+  const handleStageMouseUp = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    panZoom.handleMouseUp();
+    marquee.handleMouseUp();
+
+    if (isDrawingArrow.current && drawingArrow) {
+      isDrawingArrow.current = false;
+      const dx = drawingArrow.x2 - drawingArrow.x1;
+      const dy = drawingArrow.y2 - drawingArrow.y1;
+      if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        const isAnimated = activeTool === 'animated_arrow';
+        const ct = useEditorStore.getState().currentTime;
+        const durMs = recordDurationSeconds * 1000;
+        const obj: MapObject = {
+          id: uuid(), type: isAnimated ? 'animated_arrow' : 'drawing',
+          drawTool: isAnimated ? undefined : 'arrow', x: 0, y: 0,
+          points: [drawingArrow.x1, drawingArrow.y1, drawingArrow.x2, drawingArrow.y2],
+          rotation: 0, scaleX: 1, scaleY: 1, layer: 'drawings', visible: true, locked: false,
+          color: '#d4a843',
+          ...(isAnimated ? { animStartTime: ct, animEndTime: ct + durMs } : {}),
+        };
+        logger.info('Arrow created', { id: obj.id, isAnimated });
+        addObject(obj);
+        setSelectedIds([obj.id]);
+      }
+      setDrawingArrow(null);
+    }
+  };
+
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (marquee.resetIgnoreNextClick()) return;
+    if (e.evt.button !== 0 || panZoom.isPanning) return;
+
+    // Text tool — click to place a text label
+    if (activeTool === 'text') {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const coords = getStageCoords(stage.getPointerPosition()!);
+      const obj: MapObject = {
+        id: uuid(), type: 'map_text', label: 'Text',
+        x: coords.x, y: coords.y, rotation: 0, scaleX: 1, scaleY: 1,
+        layer: 'units', visible: true, locked: false,
+        text: 'City Name', fontSize: 20, fontColor: '#ffffff',
+      };
+      logger.info('Text label created', { id: obj.id });
+      addObject(obj);
+      setSelectedIds([obj.id]);
+      setActiveTool('select');
+      return;
+    }
+
+    pathDrawing.handleStageClick();
+
+    // Click on empty space deselects
+    const target = e.target;
+    if (isCanvasBackgroundTarget(target)) {
+      useEditorStore.setState({ selectedIds: [], selectedNarrationId: null, selectedOverlayId: null, selectedKeyframeIndex: null });
+      setContextMenu(null);
+    }
+  };
+
+  const handleStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.evt.preventDefault();
+    pathDrawing.handleStageContextMenu(e);
+
+    if (activeTool === 'path') return;
+
+    // Show context menu on empty space
+    const target = e.target;
+    const container = containerRef.current;
+    if (isCanvasBackgroundTarget(target) && container) {
+      const rect = container.getBoundingClientRect();
+      const contextPos = { x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top, objectId: null };
+      logger.debug('Empty canvas context menu', contextPos);
+      setContextMenu(contextPos);
+    }
+  };
+
+  const handleAddUnitAtCursor = (unitType: UnitType) => {
+    if (!contextMenu) return;
+    const cx = (contextMenu.x - stagePosition.x) / stageScale;
+    const cy = (contextMenu.y - stagePosition.y) / stageScale;
+    const category = getUnitCategory(unitType);
+    const obj: MapObject = {
+      id: uuid(), type: 'unit', unitType, objectCategory: category as ObjectCategory,
+      label: getUnitDisplayLabel(unitType), x: cx, y: cy,
+      rotation: 0, scaleX: 1, scaleY: 1, layer: 'units',
+      visible: true, locked: false, width: 50, height: 50,
+    };
+    logger.info('Unit added via context menu', { type: unitType, id: obj.id });
+    addObject(obj);
+    setActiveTool('select');
+    setSelectedIds([obj.id]);
+    setContextMenu(null);
+  };
+
+  const handleAddEffectAtCursor = (presetIndex: number) => {
+    if (!contextMenu) return;
+    const cx = (contextMenu.x - stagePosition.x) / stageScale;
+    const cy = (contextMenu.y - stagePosition.y) / stageScale;
+    const preset = EFFECT_PRESETS[presetIndex];
+    if (!preset) return;
+    const obj: MapObject = {
+      id: uuid(), type: 'effect', effectType: preset.type, label: preset.label,
+      x: cx, y: cy, rotation: 0, scaleX: 1, scaleY: 1,
+      layer: 'effects', visible: true, locked: false, width: 60, height: 60,
+    };
+    logger.info('Effect added via context menu', { type: preset.type, id: obj.id });
+    addObject(obj);
+    const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
+    addEffect(obj.id, effect);
+    setSelectedIds([obj.id]);
+    setContextMenu(null);
+  };
+
+  const handleDragStart = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    activeDragLeadId.current = id;
+    const selectedAtStart = useEditorStore.getState().selectedIds;
+    if (selectedAtStart.includes(id) && selectedAtStart.length > 1) {
+      groupDragState.current = {
+        leadId: id,
+        leadStart: { x: e.target.x(), y: e.target.y() },
+        memberIds: Array.from(new Set(selectedAtStart)),
+        appliedDelta: { x: 0, y: 0 },
+      };
+      logger.debug('Group drag started', { leadId: id, memberCount: selectedAtStart.length });
+    } else {
+      groupDragState.current = null;
+      logger.debug('Object drag started', { id });
+    }
+    onObjectDragStart(id);
+  };
+
+  const handleDragMove = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
+      return;
+    }
+    const x = e.target.x(), y = e.target.y();
+    onObjectDragMove(id, x, y);
+    const dragSession = groupDragState.current;
+    if (dragSession && dragSession.leadId === id && dragSession.memberIds.length > 1) {
+      const totalDx = x - dragSession.leadStart.x;
+      const totalDy = y - dragSession.leadStart.y;
+      const stepDx = totalDx - dragSession.appliedDelta.x;
+      const stepDy = totalDy - dragSession.appliedDelta.y;
+      if (Math.abs(stepDx) > 0.0001 || Math.abs(stepDy) > 0.0001) {
+        onGroupDragMove(id, stepDx, stepDy, dragSession.memberIds);
+        dragSession.appliedDelta = { x: totalDx, y: totalDy };
+      }
+    }
+  };
+
+  const handleDragEnd = (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    if (activeDragLeadId.current && activeDragLeadId.current !== id) {
+      return;
+    }
+    const x = e.target.x();
+    const y = e.target.y();
+    const dragSession = groupDragState.current;
+    if (dragSession && dragSession.leadId === id && dragSession.memberIds.length > 1) {
+      const totalDx = x - dragSession.leadStart.x;
+      const totalDy = y - dragSession.leadStart.y;
+      const stepDx = totalDx - dragSession.appliedDelta.x;
+      const stepDy = totalDy - dragSession.appliedDelta.y;
+      if (Math.abs(stepDx) > 0.0001 || Math.abs(stepDy) > 0.0001) {
+        onGroupDragMove(id, stepDx, stepDy, dragSession.memberIds);
+      }
+    }
+    logger.debug('Drag ended', { id, x, y });
+    onObjectDragEnd(id, x, y);
+    groupDragState.current = null;
+    activeDragLeadId.current = null;
   };
 
   const resolveDroppedCustomEffect = useCallback((effectData: string): CustomEffectAsset | null => {
@@ -680,6 +509,7 @@ const MapCanvas: React.FC = () => {
         x: stageX, y: stageY, rotation: 0, scaleX: 1, scaleY: 1,
         layer: 'units', visible: true, locked: false, width: 50, height: 50,
       };
+      logger.info('Unit dropped onto canvas', { type: unitData, id: obj.id });
       addObject(obj);
       useEditorStore.getState().setActiveTool('select');
       setSelectedIds([obj.id]);
@@ -697,6 +527,7 @@ const MapCanvas: React.FC = () => {
         customIcon: customEffect.dataUrl,
         layer: 'effects', visible: true, locked: false, width: 60, height: 60,
       };
+      logger.info('Custom effect dropped onto canvas', { label: customEffect.label, id: customEffectObject.id });
       addObject(customEffectObject);
       setSelectedIds([customEffectObject.id]);
       return;
@@ -713,6 +544,7 @@ const MapCanvas: React.FC = () => {
     });
 
     if (hitUnit) {
+      logger.info('Effect dropped onto unit', { unitId: hitUnit.id, effectType: preset.type });
       const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
       addEffect(hitUnit.id, effect);
       setSelectedIds([hitUnit.id]);
@@ -722,6 +554,7 @@ const MapCanvas: React.FC = () => {
         x: stageX, y: stageY, rotation: 0, scaleX: 1, scaleY: 1,
         layer: 'effects', visible: true, locked: false, width: 60, height: 60,
       };
+      logger.info('Standalone effect dropped onto canvas', { effectType: preset.type, id: obj.id });
       addObject(obj);
       const effect = createEffectFromPreset(preset, useEditorStore.getState().currentTime);
       addEffect(obj.id, effect);
@@ -735,18 +568,17 @@ const MapCanvas: React.FC = () => {
     e.evt.preventDefault();
     e.cancelBubble = true;
 
-    // If we're drawing a path, right-click saves it instead of showing menu
     if (activeTool === 'path') {
-      if (pathPoints.length >= 2) {
-        finalizePath();
-      }
+      pathDrawing.handleStageContextMenu(e);
       return;
     }
 
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    setContextMenu({ x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top, objectId: id });
+    const contextPos = { x: e.evt.clientX - rect.left, y: e.evt.clientY - rect.top, objectId: id };
+    logger.debug('Object context menu', { id, ...contextPos });
+    setContextMenu(contextPos);
   };
 
   const getGroupForObject = (objId: string) => {
@@ -758,10 +590,9 @@ const MapCanvas: React.FC = () => {
 
   /** Start drawing a path for a specific unit via context menu */
   const startPathForUnit = (unitId: string) => {
+    logger.info('Path drawing started via context menu', { unitId });
     setSelectedIds([unitId]);
     setActiveTool('path');
-    setPathPoints([]);
-    isDrawingPath.current = false;
     setContextMenu(null);
   };
 
@@ -801,23 +632,6 @@ const MapCanvas: React.FC = () => {
     }
   }, [isPlaying, videoEffects]);
 
-  // Status bar text for path drawing
-  const getPathStatusText = () => {
-    if (activeTool !== 'path') return null;
-    const sids = useEditorStore.getState().selectedIds;
-    if (sids.length !== 1) return 'Select exactly 1 unit to draw a path';
-    const unit = objectsById[sids[0]];
-    const unitName = unit?.label || unit?.unitType || 'Unit';
-    const durLabel = `Path duration: ${recordDurationSeconds}s (change in toolbar)`;
-    const startHint = 'Start is locked to the unit\'s current position.';
-    const overwriteHint = 'Saving this path replaces future movement.';
-    const saveHint = pathPoints.length < 2 ? 'Add at least 2 points to save.' : 'Right-click to save.';
-    if (pathPoints.length === 0) {
-      return `Drawing path for "${unitName}" — Left-click: add point, Esc: cancel · ${saveHint} · ${startHint} · ${durLabel} · ${overwriteHint}`;
-    }
-    return `${pathPoints.length} points for "${unitName}" — Left-click: add, Esc: cancel · ${saveHint} · ${startHint} · ${durLabel} · ${overwriteHint}`;
-  };
-
   const getPathStartAnchor = () => {
     if (activeTool !== 'path') return null;
     if (selectedIds.length !== 1) return null;
@@ -834,7 +648,7 @@ const MapCanvas: React.FC = () => {
   };
 
   const pathStartAnchor = getPathStartAnchor();
-  const previewPathPoints = pathStartAnchor ? [pathStartAnchor, ...pathPoints] : pathPoints;
+  const previewPathPoints = pathStartAnchor ? [pathStartAnchor, ...pathDrawing.pathPoints] : pathDrawing.pathPoints;
 
   // Context menu sub-menu state
   const [contextSubMenu, setContextSubMenu] = useState<string | null>(null);
@@ -862,7 +676,7 @@ const MapCanvas: React.FC = () => {
       {activeTool === 'path' && !isExportRender && (
         <div className="absolute top-2 left-2 z-10 px-3 py-1.5 bg-accent/20 border border-accent/50 rounded text-[10px] font-mono text-accent flex items-center gap-2">
           <Route size={12} />
-          {getPathStatusText()}
+          {pathDrawing.getPathStatusText()}
         </div>
       )}
 
@@ -874,7 +688,7 @@ const MapCanvas: React.FC = () => {
         scaleY={stageScale}
         x={stagePosition.x}
         y={stagePosition.y}
-        onWheel={handleWheel}
+        onWheel={panZoom.handleWheel}
         onClick={handleStageClick}
         onTap={handleStageClick}
         onContextMenu={handleStageContextMenu}
@@ -926,6 +740,7 @@ const MapCanvas: React.FC = () => {
             return (
               <Group key={d.id}
                 onClick={(e) => {
+                  if (isPlaying) return;
                   e.cancelBubble = true;
                   if (e.evt.shiftKey) {
                     setSelectedIds(selectedIds.includes(d.id) ? selectedIds.filter((id) => id !== d.id) : [...selectedIds, d.id]);
@@ -956,7 +771,7 @@ const MapCanvas: React.FC = () => {
               )}
               <Circle x={pathStartAnchor.x} y={pathStartAnchor.y} radius={6} fill="#1de9b6" stroke="#ffffff" strokeWidth={2} opacity={0.95} listening={false} />
               <Text x={pathStartAnchor.x + 8} y={pathStartAnchor.y - 16} text="Start" fontSize={10} fill="#1de9b6" listening={false} />
-              {pathPoints.map((p, i) => (
+              {pathDrawing.pathPoints.map((p, i) => (
                 <Circle key={`pp-${i}`} x={p.x} y={p.y} radius={4} fill="#00bcd4" stroke="#fff" strokeWidth={1} opacity={0.9} listening={false} />
               ))}
             </>
@@ -1142,13 +957,13 @@ const MapCanvas: React.FC = () => {
         </Layer>
 
         {/* Selection rectangle overlay */}
-        {selectionRect && !isExportRender && (
+        {marquee.selectionRect && !isExportRender && (
           <Layer>
             <Rect
-              x={Math.min(selectionRect.x1, selectionRect.x2)}
-              y={Math.min(selectionRect.y1, selectionRect.y2)}
-              width={Math.abs(selectionRect.x2 - selectionRect.x1)}
-              height={Math.abs(selectionRect.y2 - selectionRect.y1)}
+              x={Math.min(marquee.selectionRect.x1, marquee.selectionRect.x2)}
+              y={Math.min(marquee.selectionRect.y1, marquee.selectionRect.y2)}
+              width={Math.abs(marquee.selectionRect.x2 - marquee.selectionRect.x1)}
+              height={Math.abs(marquee.selectionRect.y2 - marquee.selectionRect.y1)}
               fill="rgba(212,168,67,0.1)"
               stroke="#d4a843"
               strokeWidth={1}
@@ -1183,7 +998,7 @@ const MapCanvas: React.FC = () => {
                 <>
                   <div className="px-3 py-1 text-[8px] font-mono uppercase text-muted-foreground">Add to Group</div>
                   {Object.values(groups).map((g) => (
-                    <button key={g.id} onClick={() => { addToGroup(g.id, [contextMenu.objectId!]); setContextMenu(null); }}
+                    <button key={g.id} onClick={() => { logger.info('Adding unit to group via menu', { unitId: contextMenu.objectId, groupId: g.id }); addToGroup(g.id, [contextMenu.objectId!]); setContextMenu(null); }}
                       className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: g.color }} /> {g.name}
                     </button>
@@ -1196,7 +1011,10 @@ const MapCanvas: React.FC = () => {
               {getGroupForObject(contextMenu.objectId) && (
                 <button onClick={() => {
                   const g = getGroupForObject(contextMenu.objectId!);
-                  if (g) useEditorStore.getState().removeFromGroup(g.id, [contextMenu.objectId!]);
+                  if (g) {
+                    logger.info('Removing unit from group via menu', { unitId: contextMenu.objectId, groupId: g.id });
+                    useEditorStore.getState().removeFromGroup(g.id, [contextMenu.objectId!]);
+                  }
                   setContextMenu(null);
                 }} className="w-full text-left px-3 py-1.5 text-[10px] font-mono text-foreground hover:bg-muted transition-colors">
                   Remove from Group

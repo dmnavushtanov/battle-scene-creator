@@ -18,6 +18,18 @@ Create cinematic animated battle maps right in your browser — no installs, no 
 
 ---
 
+## Engineering Philosophy
+
+This project adheres to a **Senior Engineer Philosophy**: **Simple code is better than clever code.**
+
+1.  **Clarity over Cleverness:** Logic should be instantly understandable, avoiding advanced syntax tricks that hinder debugging.
+2.  **Explicit > Hidden:** Avoid "magic" abstractions. Prefer step-by-step logic that can be traced easily.
+3.  **Debuggability First:** Every major state transition (recording, importing, movement) is logged via a structured `Logger` utility.
+4.  **Small Modules:** Large components are broken down into focused hooks and sub-components (Single Responsibility Principle).
+5.  **Fail Fast:** Configuration or state errors throw clear, descriptive exceptions rather than failing silently.
+
+---
+
 ## Features
 
 ### Project Management
@@ -175,14 +187,22 @@ src/
 │       ├── timeline.ts     # Keyframe interpolation
 │       ├── recording.ts    # Recording session logic
 │       ├── effects.ts      # Effect presets and utilities
-│       ├── serialization.ts# JSON import/export
-│       └── videoExport.ts  # WebM export
+│       ├── serialization.ts# JSON import/export (with logging)
+│       └── videoExport.ts  # WebM export (with logging)
 ├── store/
-│   └── editorStore.ts      # Zustand store (state + actions + clipboard)
+│   └── editorStore.ts      # Zustand store (with structured logging)
+├── hooks/
+│   ├── usePanZoom.ts       # Extracted logic for stage navigation
+│   ├── useMarqueeSelection.ts # Extracted logic for rectangle selection
+│   ├── usePathDrawing.ts   # Extracted logic for path-based movement
+│   └── use-toast.ts        # UI feedback
+├── utils/
+│   ├── logger.ts           # Structured logging utility (Debug/Info/Warn/Error)
+│   └── ids.ts              # ID generation
 ├── pages/
 │   └── Index.tsx            # Start menu + main layout + file menu
 ├── components/editor/
-│   ├── MapCanvas.tsx        # Konva canvas, drag-drop, context menu, marquee select, shortcuts
+│   ├── MapCanvas.tsx        # Lean Konva canvas (orchestrates interaction hooks)
 │   ├── Toolbar.tsx          # Tools (select, arrow, anim arrow, path, text), recording UX
 │   ├── AssetLibrary.tsx     # Collapsible asset categories
 │   ├── PropertiesPanel.tsx  # Object properties, effects, keyframes, faction colors
@@ -199,6 +219,18 @@ src/
 ## AI Maintainer Guide (Mechanics + Editing Rules)
 
 This section explains the behavior contracts behind selection, dragging, groups, timeline playback, recording, and export so future edits do not regress core UX.
+
+### Debugging & Logging
+- **Always use `src/utils/logger.ts`** instead of raw `console.log`.
+- Log levels:
+    - `info`: Major lifecycle events (Export started, Scene switched, Group created).
+    - `debug`: High-frequency interactions (Object dragged, Zoomed, Keyframe added).
+    - `warn`: Unexpected but recoverable states (Active scene not found, Empty clipboard paste).
+    - `error`: Critical failures (Import failed, MediaRecorder error).
+
+### Modularity Rules
+- **Keep `MapCanvas.tsx` thin.** New interaction tools should be implemented as custom hooks in `src/hooks/`.
+- **Domain logic stays in `src/domain/services/`.** The store should only orchestrate these services.
 
 ### State Model (Authoritative Data)
 

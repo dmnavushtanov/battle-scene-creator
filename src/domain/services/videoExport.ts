@@ -1,5 +1,8 @@
 import Konva from 'konva';
 import type { NarrationEvent } from '../models';
+import { createLogger } from '@/utils/logger';
+
+const logger = createLogger('VideoExport');
 
 interface FrameRequestableMediaStreamTrack extends MediaStreamTrack {
   requestFrame: () => void;
@@ -20,7 +23,6 @@ export interface VideoExportOptions {
 /**
  * Export the Konva stage animation as a WebM video.
  * Renders frame-by-frame by stepping through the timeline.
- * Now waits for React re-renders and draws narration text on canvas.
  */
 export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
   const {
@@ -34,6 +36,8 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
     computeFrame,
     getNarrations,
   } = opts;
+
+  logger.info('Starting video export', { duration, fps, scale });
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(stage.width() * scale));
@@ -54,8 +58,12 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
   };
 
   return new Promise((resolve, reject) => {
-    mediaRecorder.onerror = (e) => reject(e);
+    mediaRecorder.onerror = (e) => {
+      logger.error('MediaRecorder error', e);
+      reject(e);
+    };
     mediaRecorder.onstop = () => {
+      logger.info('MediaRecorder stopped. Chunks collected:', chunks.length);
       resolve(new Blob(chunks, { type: mediaRecorder.mimeType || mimeType }));
     };
 
@@ -67,6 +75,7 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
 
     const renderNextFrame = () => {
       if (frame > totalFrames) {
+        logger.info('Render complete, stopping recorder');
         mediaRecorder.stop();
         return;
       }
@@ -152,7 +161,11 @@ export async function exportVideo(opts: VideoExportOptions): Promise<Blob> {
         }
 
         frame++;
-        onProgress?.(Math.min(100, Math.round((frame / totalFrames) * 100)));
+        const percent = Math.min(100, Math.round((frame / totalFrames) * 100));
+        onProgress?.(percent);
+        if (frame % 30 === 0) {
+          logger.debug('Export progress', { frame, totalFrames, percent });
+        }
 
         // Use setTimeout to allow the recorder to process
         setTimeout(renderNextFrame, 16);
