@@ -113,6 +113,13 @@ export interface UnitGroup {
   memberIds: string[];
 }
 
+export interface CameraKeyframe {
+  time: number;
+  x: number;
+  y: number;
+  scale: number;
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -121,6 +128,7 @@ export interface Scene {
   objectsById: Record<string, MapObject>;
   objectOrder: string[];
   keyframesByObjectId: Record<string, Keyframe[]>;
+  cameraKeyframes?: CameraKeyframe[];
   effectsByObjectId: Record<string, UnitEffect[]>;
   narrationEvents: NarrationEvent[];
   overlayEvents: OverlayEvent[];
